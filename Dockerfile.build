@@ -1,10 +1,12 @@
 FROM debian:stable-slim
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y install ca-certificates curl
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh
-RUN chmod +x rustup.sh
-RUN ./rustup.sh -y
-RUN rm rustup.sh
-RUN . $HOME/.cargo/env
-RUN cargo install cargo-web
-RUN rustup target add wasm32-unknown-unknown
+SHELL ["/bin/bash", "-c"] 
+
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y install ca-certificates curl \
+&& curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh \
+&& chmod +x rustup.sh \
+&& ./rustup.sh -y \
+&& rm rustup.sh \
+&& source $HOME/.cargo/env \
+&& cargo install cargo-web \
+&& rustup target add wasm32-unknown-unknown
