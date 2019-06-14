@@ -1,4 +1,4 @@
-FROM debian:stable-slim
+FROM rust:slim
 
 SHELL ["/bin/bash", "-c"] 
 
@@ -9,6 +9,5 @@ RUN chsh -s /bin/bash \
 && ./rustup.sh -y \
 && rm rustup.sh \
 && source $HOME/.cargo/env \
-&& echo "source \$HOME/.cargo/env" >> $HOME/.bashrc \
 && cargo install cargo-web \
 && rustup target add wasm32-unknown-unknown
