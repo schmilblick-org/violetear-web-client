@@ -23,6 +23,9 @@ build:
     paths:
       - cargo_home/
       - target/
+  artifacts:
+    paths:
+      - target/deploy/
 
 build_docker_image:
   stage: build_docker_image
@@ -44,11 +47,8 @@ build_docker_image:
   only:
     - branches
     - tags
-  cache:
-    key: ${CI_COMMIT_REF_SLUG}
-    paths:
-      - cargo_home/
-      - target/
+  dependencies:
+    - build
 
 test:
   stage: test
@@ -60,6 +60,8 @@ test:
     paths:
       - cargo_home/
       - target/
+  dependencies:
+    - build
 
 staging:
   stage: staging
