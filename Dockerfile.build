@@ -5,5 +5,6 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh
 RUN chmod +x rustup.sh
 RUN ./rustup.sh -y
 RUN rm rustup.sh
+RUN source $HOME/.cargo/env
 RUN cargo install cargo-web
 RUN rustup target add wasm32-unknown-unknown
