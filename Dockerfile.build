@@ -8,6 +8,6 @@ RUN chsh -s /bin/bash \
 && chmod +x rustup.sh \
 && ./rustup.sh -y \
 && rm rustup.sh \
-&& source $HOME/.cargo/env \
+&& source /usr/local/cargo/env \
 && cargo install cargo-web \
 && rustup target add wasm32-unknown-unknown
