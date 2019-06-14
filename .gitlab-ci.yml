@@ -1,0 +1,104 @@
+image: alpine:latest
+
+variables:
+  DOCKER_DRIVER: overlay2
+
+stages:
+  - bootstrap
+  - build
+  - test
+  - build_docker_image
+  - deploy
+  - staging
+  - production
+
+build:
+  stage: build
+  image: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG:build
+  script:
+    - ls -lGha
+    - CARGO_HOME="$(pwd)/cargo_home" cargo web deploy --release
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - cargo_home/
+      - target/
+
+build_docker_image:
+  stage: build_docker_image
+  image: "registry.gitlab.com/gitlab-org/cluster-integration/auto-build-image/master:stable"
+  services:
+    - docker:stable-dind
+  script:
+    - |
+      if [[ -z "$CI_COMMIT_TAG" ]]; then
+        export CI_APPLICATION_REPOSITORY=${CI_APPLICATION_REPOSITORY:-$CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG}
+        export CI_APPLICATION_TAG=${CI_APPLICATION_TAG:-$CI_COMMIT_SHA}
+      else
+        export CI_APPLICATION_REPOSITORY=${CI_APPLICATION_REPOSITORY:-$CI_REGISTRY_IMAGE}
+        export CI_APPLICATION_TAG=${CI_APPLICATION_TAG:-$CI_COMMIT_TAG}
+      fi
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    - docker build --tag "$CI_APPLICATION_REPOSITORY:$CI_APPLICATION_TAG" .
+    - docker push "$CI_APPLICATION_REPOSITORY:$CI_APPLICATION_TAG"
+  only:
+    - branches
+    - tags
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - cargo_home/
+      - target/
+
+test:
+  stage: test
+  image: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG:build
+  script:
+    - CARGO_HOME="$(pwd)/cargo_home" cargo web test --release
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - cargo_home/
+      - target/
+
+staging:
+  stage: staging
+  image: fedora # Because it has curl
+  script:
+    - |
+      if [[ -z "$CI_COMMIT_TAG" ]]; then
+        export CI_APPLICATION_REPOSITORY=${CI_APPLICATION_REPOSITORY:-$CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG}
+        export CI_APPLICATION_TAG=${CI_APPLICATION_TAG:-$CI_COMMIT_SHA}
+      else
+        export CI_APPLICATION_REPOSITORY=${CI_APPLICATION_REPOSITORY:-$CI_REGISTRY_IMAGE}
+        export CI_APPLICATION_TAG=${CI_APPLICATION_TAG:-$CI_COMMIT_TAG}
+      fi
+    - curl --data "name=staging-client&port=5002&image=${CI_APPLICATION_REPOSITORY}:${CI_APPLICATION_TAG}&token=${DEPLOY_TOKEN}&image_port=80&" ${DEPLOY_ENDPOINT}
+  only:
+    - staging
+
+production:
+  stage: production
+  image: fedora # Because it has curl
+  script:
+    - |
+      if [[ -z "$CI_COMMIT_TAG" ]]; then
+        export CI_APPLICATION_REPOSITORY=${CI_APPLICATION_REPOSITORY:-$CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG}
+        export CI_APPLICATION_TAG=${CI_APPLICATION_TAG:-$CI_COMMIT_SHA}
+      else
+        export CI_APPLICATION_REPOSITORY=${CI_APPLICATION_REPOSITORY:-$CI_REGISTRY_IMAGE}
+        export CI_APPLICATION_TAG=${CI_APPLICATION_TAG:-$CI_COMMIT_TAG}
+      fi
+    - curl --data "name=production-client&port=5003&image=${CI_APPLICATION_REPOSITORY}:${CI_APPLICATION_TAG}&token=${DEPLOY_TOKEN}&image_port=80&" ${DEPLOY_ENDPOINT}
+  only:
+    - production
+
+bootstrap:
+  image: docker:stable
+  stage: bootstrap
+  services:
+    - docker:stable-dind
+  script:
+    - ./build_bootstrap.sh
+  only:
+    - schedules
