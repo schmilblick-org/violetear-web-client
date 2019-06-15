@@ -115,23 +115,27 @@ impl Component for Model {
             }
             Msg::Login => {
                 if let Some(config) = &self.config {
-
-                self.ft = Some(self.fetch_service.fetch(
-                    Request::post(&format!("{}/login", config.api_url)).body(Json(&self.loginregister_form)).unwrap(),
-                    self.link.send_back(
-                            move |response: Response<Json<Result<Config, Error>>>| {
-                                let (meta, Json(data)) = response.into_parts();
-                                if meta.status.is_success() {
-                                    Msg::FetchConfigDone(data)
-                                } else {
-                                    Msg::FetchConfigError
-                                }
-                            },
-                        )))
+                    self.ft = Some(
+                        self.fetch_service.fetch(
+                            Request::post(&format!("{}/login", config.api_url))
+                                .body(Json(&self.loginregister_form))
+                                .unwrap(),
+                            self.link.send_back(
+                                move |response: Response<Json<Result<Config, Error>>>| {
+                                    let (meta, Json(data)) = response.into_parts();
+                                    if meta.status.is_success() {
+                                        Msg::FetchConfigDone(data)
+                                    } else {
+                                        Msg::FetchConfigError
+                                    }
+                                },
+                            ),
+                        ),
+                    )
                 };
 
                 false
-            },
+            }
             Msg::Register => false,
         }
     }
