@@ -3,6 +3,7 @@ use serde_derive::{Deserialize, Serialize};
 use yew::format::{Json, Nothing};
 use yew::services::fetch::{FetchService, FetchTask, Request, Response};
 use yew::services::storage::{Area, StorageService};
+use yew::services::console::ConsoleService;
 
 use yew::{html, Component, ComponentLink, Html, Renderable, ShouldRender};
 
@@ -12,11 +13,13 @@ struct Model {
     link: ComponentLink<Model>,
     storage_service: StorageService,
     fetch_service: FetchService,
-    ft_config: Option<FetchTask>,
+    console_service: ConsoleService,
+    ft: Option<FetchTask>,
     config: Option<Config>,
     state: State,
     scene: Scene,
     loginregister_error: Option<String>,
+    loginregister_form: LoginRegisterFormData,
 }
 
 enum Scene {
@@ -43,6 +46,12 @@ struct State {
     token: Option<String>,
 }
 
+#[derive(Serialize, Default)]
+struct LoginRegisterFormData {
+    username: String,
+    password: String,
+}
+
 impl Component for Model {
     type Message = Msg;
     type Properties = ();
@@ -62,18 +71,20 @@ impl Component for Model {
             link,
             state,
             fetch_service: FetchService::new(),
-            ft_config: None,
+            console_service: ConsoleService::new(),
+            ft: None,
             storage_service,
             config: None,
             scene: Scene::Loading,
             loginregister_error: None,
+            loginregister_form: LoginRegisterFormData::default(),
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::FetchConfig => {
-                self.ft_config =
+                self.ft =
                     Some(self.fetch_service.fetch(
                         Request::get("/config.json").body(Nothing).unwrap(),
                         self.link.send_back(
@@ -92,9 +103,8 @@ impl Component for Model {
             Msg::FetchConfigDone(response) => {
                 self.config = response.ok();
 
-                yew::services::console::ConsoleService::new().log(
-                    &format!("Configuration was fetched.\n{:#?}", self.config),
-                );
+                self.console_service
+                    .log(&format!("Configuration was fetched.\n{:#?}", self.config));
 
                 self.scene = Scene::LoginRegister;
                 true
@@ -103,7 +113,25 @@ impl Component for Model {
                 self.scene = Scene::FetchConfigError;
                 true
             }
-            Msg::Login => false,
+            Msg::Login => {
+                if let Some(config) = &self.config {
+
+                self.ft = Some(self.fetch_service.fetch(
+                    Request::post(&format!("{}/login", config.api_url)).body(Json(&self.loginregister_form)).unwrap(),
+                    self.link.send_back(
+                            move |response: Response<Json<Result<Config, Error>>>| {
+                                let (meta, Json(data)) = response.into_parts();
+                                if meta.status.is_success() {
+                                    Msg::FetchConfigDone(data)
+                                } else {
+                                    Msg::FetchConfigError
+                                }
+                            },
+                        )))
+                };
+
+                false
+            },
             Msg::Register => false,
         }
     }
