@@ -8,8 +8,6 @@ enum Msg {
 }
 
 impl Component for Model {
-    // Some details omitted. Explore the examples to see more.
-
     type Message = Msg;
     type Properties = ();
 
@@ -28,20 +26,17 @@ impl Component for Model {
 impl Renderable<Model> for Model {
     fn view(&self) -> Html<Self> {
         html! {
-            <body style="padding: 30px 30px; text-align: center;",>
-                <div style="position: relative; display: inline-block; padding: 20px; width: auto; text-align: left;",>
-                    <p>
-                        <input style="padding: 5px; line-height: 20px;", type="text", placeholder="username",></input>
-                    </p>
-                    <p>
-                        <input style="padding: 5px; line-height: 20px;", type="text", placeholder="password",></input>
-                    </p>
-                    <div style="position: absolute; bottom: 0; left: 20px;",>
-                        <button onclick=|_| Msg::Register,>{ "Register" }</button>
-                    </div>
-                    <div style="position: absolute; bottom: 0; right: 20px;",>
-                        <button onclick=|_| Msg::Login,>{ "Login" }</button>
-                    </div>
+            <body class="login-body",>
+                <div class="login-div",>
+                        <input class="login-input", type="text", placeholder="username",/>
+                        <input class="login-input", type="text", placeholder="password",/>
+
+                        <button class="login-button", style="left: 20px", onclick=|_| Msg::Register,>
+                            { "Register" }
+                        </button>
+                        <button class="login-button", style="right: 20px", onclick=|_| Msg::Login,>
+                            { "Login" }
+                        </button>
                 </div>
             </body>
         }
