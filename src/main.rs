@@ -219,10 +219,12 @@ impl Renderable<Model> for Model {
     fn view(&self) -> Html<Self> {
         match self.scene {
             Scene::Loading => html! {
-                <body onmouseover=|_| Msg::FetchConfig,> /* FIXME: Find a way to propagate a startup event */
-                    <h3 style="text-align: center;",>
-                        { "Application is loading.." }
-                    </h3>
+                <body>
+                    <button
+                        onclick=|_| Msg::FetchConfig, /* FIXME: Find a way to propagate a startup event */
+                            style="text-align: center;",>
+                        { "Start" }
+                    </button>
                 </body>
             },
             Scene::LoginRegister => html! {
