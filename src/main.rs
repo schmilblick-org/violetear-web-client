@@ -71,7 +71,7 @@ impl Component for Model {
     type Message = Msg;
     type Properties = ();
 
-    fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(_: Self::Properties, mut link: ComponentLink<Self>) -> Self {
         let mut storage_service = StorageService::new(Area::Local);
 
         let state = {
@@ -81,6 +81,8 @@ impl Component for Model {
                 State { token: None }
             }
         };
+
+        link.send_self(Msg::FetchConfig);
 
         Self {
             link,
@@ -220,11 +222,9 @@ impl Renderable<Model> for Model {
         match self.scene {
             Scene::Loading => html! {
                 <body>
-                    <button
-                        onclick=|_| Msg::FetchConfig, /* FIXME: Find a way to propagate a startup event */
-                            style="text-align: center;",>
-                        { "Start" }
-                    </button>
+                    <h3 style="text-align: center;",>
+                        { "Application is loading.." }
+                    </h3>
                 </body>
             },
             Scene::LoginRegister => html! {
