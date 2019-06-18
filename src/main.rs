@@ -20,6 +20,7 @@ struct Model {
     scene: Scene,
     loginregister_error: Option<String>,
     loginregister_form: LoginRegisterFormData,
+    logout_error: Option<String>,
 }
 
 enum Scene {
@@ -33,12 +34,16 @@ enum Msg {
     FetchConfig,
     FetchConfigDone(Result<Config, Error>),
     FetchConfigError,
+    LoginRegisterFormDataChange(LoginRegisterFormDataField, String),
     Login,
     LoginDone(Result<LoginResponse, Error>),
     LoginError,
     Register,
     RegisterDone(Result<RegisterResponse, Error>),
     RegisterError,
+    Logout,
+    LogoutDone(Result<LogoutResponse, Error>),
+    LogoutError,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -49,6 +54,11 @@ struct Config {
 #[derive(Serialize, Deserialize)]
 struct State {
     token: Option<String>,
+}
+
+enum LoginRegisterFormDataField {
+    Username,
+    Password,
 }
 
 #[derive(Serialize, Default)]
@@ -66,6 +76,14 @@ struct LoginResponse {
 struct RegisterResponse {
     token: Option<String>,
 }
+
+#[derive(Serialize)]
+struct Logout {
+    token: String,
+}
+
+#[derive(Deserialize)]
+struct LogoutResponse {}
 
 impl Component for Model {
     type Message = Msg;
@@ -95,17 +113,15 @@ impl Component for Model {
             scene: Scene::Loading,
             loginregister_error: None,
             loginregister_form: LoginRegisterFormData::default(),
+            logout_error: None,
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::FetchConfig => {
-                if self.state.token.is_some() {
-                    self.scene = Scene::LoggedIn;
-                    true
-                } else {
-                    self.ft = Some(self.fetch_service.fetch(
+                self.ft =
+                    Some(self.fetch_service.fetch(
                         Request::get("/config.json").body(Nothing).unwrap(),
                         self.link.send_back(
                             move |response: Response<Json<Result<Config, Error>>>| {
@@ -118,8 +134,7 @@ impl Component for Model {
                             },
                         ),
                     ));
-                    false
-                }
+                false
             }
             Msg::FetchConfigDone(response) => {
                 self.config = response.ok();
@@ -127,7 +142,11 @@ impl Component for Model {
                 self.console_service
                     .log(&format!("Configuration was fetched.\n{:#?}", self.config));
 
-                self.scene = Scene::LoginRegister;
+                self.scene = if self.state.token.is_some() {
+                    Scene::LoggedIn
+                } else {
+                    Scene::LoginRegister
+                };
                 true
             }
             Msg::FetchConfigError => {
@@ -212,6 +231,57 @@ impl Component for Model {
                 self.loginregister_error = Some("Could not register".into());
                 true
             }
+            Msg::LoginRegisterFormDataChange(field, value) => {
+                match field {
+                    LoginRegisterFormDataField::Username => {
+                        self.loginregister_form.username = value;
+                    }
+                    LoginRegisterFormDataField::Password => {
+                        self.loginregister_form.password = value;
+                    }
+                }
+                false
+            }
+            Msg::Logout => {
+                if let Some(config) = &self.config {
+                    let logout = Logout {
+                        token: self.state.token.as_ref().unwrap().to_owned(),
+                    };
+
+                    self.ft = Some(
+                        self.fetch_service.fetch(
+                            Request::builder()
+                                .method("POST")
+                                .uri(&format!("{}/logout", config.api_url))
+                                .header("Content-Type", "application/json")
+                                .body(Json(&logout))
+                                .unwrap(),
+                            self.link.send_back(
+                                move |response: Response<Json<Result<LogoutResponse, Error>>>| {
+                                    let (meta, Json(data)) = response.into_parts();
+                                    if meta.status.is_success() {
+                                        Msg::LogoutDone(data)
+                                    } else {
+                                        Msg::LogoutError
+                                    }
+                                },
+                            ),
+                        ),
+                    )
+                };
+                false
+            }
+            Msg::LogoutDone(_response) => {
+                self.state.token = None;
+                self.storage_service.store(KEY, Json(&self.state));
+                self.loginregister_error = None;
+                self.scene = Scene::LoginRegister;
+                true
+            }
+            Msg::LogoutError => {
+                self.logout_error = Some("Could not logout".into());
+                true
+            }
             _ => false,
         }
     }
@@ -230,8 +300,18 @@ impl Renderable<Model> for Model {
             Scene::LoginRegister => html! {
                 <body class="login-body",>
                     <div class="login-div",>
-                            <input class="login-input", type="text", placeholder="username",/>
-                            <input class="login-input", type="text", placeholder="password",/>
+                            <input class="login-input",
+                                oninput=|e| {
+                                    Msg::LoginRegisterFormDataChange(LoginRegisterFormDataField::Username, e.value)
+                                },
+                                type="text",
+                                placeholder="username", />
+                            <input class="login-input",
+                                oninput=|e| {
+                                    Msg::LoginRegisterFormDataChange(LoginRegisterFormDataField::Password, e.value)
+                                },
+                                type="text",
+                                placeholder="password", />
 
                             <button class="login-button", style="left: 20px", onclick=|_| Msg::Register,>
                                 { "Register" }
@@ -240,15 +320,15 @@ impl Renderable<Model> for Model {
                                 { "Login" }
                             </button>
                     </div>
-                            <p>
-                                {
-                                    if let Some(msg) = &self.loginregister_error {
-                                        &msg
-                                    } else {
-                                        ""
-                                    }
-                                }
-                            </p>
+                    <p>
+                        {
+                            if let Some(msg) = &self.loginregister_error {
+                                &msg
+                            } else {
+                                ""
+                            }
+                        }
+                    </p>
                 </body>
             },
             Scene::FetchConfigError => html! {
@@ -260,16 +340,32 @@ impl Renderable<Model> for Model {
                 </body>
             },
             Scene::LoggedIn => html! {
-                <body>
-                    <h3 style="text-align: center;",>
+                <body class="login-body",>
+                    <div class="login-div",>
+                        <h3 style="text-align: center;",>
+                            {
+                                if let Some(token) = &self.state.token {
+                                    format!("Logged in with token {}", token)
+                                } else {
+                                    String::new()
+                                }
+                            }
+                        </h3>
+                        <div style="text-align: center;",>
+                            <button style="line-height: 20px;", onclick=|_| Msg::Logout,>
+                                { "Logout" }
+                            </button>
+                        </div>
+                    </div>
+                    <p>
                         {
-                            if let Some(token) = &self.state.token {
-                                format!("Logged in with token {}", token)
+                            if let Some(msg) = &self.logout_error {
+                                &msg
                             } else {
-                                String::new()
+                                ""
                             }
                         }
-                    </h3>
+                    </p>
                 </body>
             },
         }
