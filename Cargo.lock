@@ -356,6 +356,7 @@ dependencies = [
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.92 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.92 (registry+https://github.com/rust-lang/crates.io-index)",
+ "stdweb 0.4.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "yew 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 

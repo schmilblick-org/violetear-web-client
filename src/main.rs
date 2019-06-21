@@ -6,6 +6,7 @@ use yew::format::{Json, Nothing};
 use yew::services::fetch::{FetchService, FetchTask, Request, Response};
 use yew::services::storage::{Area, StorageService};
 use yew::services::console::ConsoleService;
+use stdweb::web::event::IEvent;
 
 use yew::{html, Component, ComponentLink, Html, Renderable, ShouldRender};
 
@@ -42,6 +43,7 @@ enum Msg {
     RegisterDone(Result<RegisterResponse, Error>),
     Logout,
     LogoutDone(Result<LogoutResponse, Error>),
+    LogEvent(stdweb::web::event::SubmitEvent),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -288,7 +290,10 @@ impl Component for Model {
                 self.logout_error = Some("Could not logout".into());
                 true
             }
-            _ => false,
+            Msg::LogEvent(e) => {
+                self.console_service.log(&format!("{:#?}", e));
+                false
+            }
         }
     }
 }
@@ -313,10 +318,10 @@ impl Renderable<Model> for Model {
                 <section class="hero is-fullheight",>
                     <div class="hero-body",>
                         <div class="container",>
-                            <div class="columns is-centered is-vcentered",>
-                                <div class="column is-one-quarter",>
+                            <div class="columns is-centered is-vcentered is-mobile",>
+                                <div class="column is-narrow", style="width: 250px;",>
                                     <div class="box",>
-                                        <form>
+                                        <form onsubmit=|e| { e.prevent_default(); Msg::LogEvent(e) },>
                                             <div class="field",>
                                                 <div class="control has-icons-left",>
                                                     <input class="input", type="text", placeholder="Username", />
@@ -327,21 +332,25 @@ impl Renderable<Model> for Model {
                                             </div>
                                             <div class="field",>
                                                 <div class="control has-icons-left",>
-                                                    <input class="input", type="text", placeholder="Password", />
+                                                    <input class="input", type="password", placeholder="Password", />
                                                     <span class="icon is-small is-left",>
                                                         <i class="fas fa-lock",/>
                                                     </span>
                                                 </div>
                                             </div>
-                                            <div class="level",>
+                                            <div class="level is-mobile",>
                                                 <div class="level-left",>
-                                                    <div class="field",>
-                                                        <input class="button", type="submit", value="Register", />
+                                                    <div class="level-item",>
+                                                        <div class="field",>
+                                                            <input class="button", type="submit", value="Register", />
+                                                        </div>
                                                     </div>
                                                 </div>
                                                 <div class="level-right",>
-                                                    <div class="field",>
-                                                        <input class="button", type="submit", value="Login", />
+                                                    <div class="level-item",>
+                                                        <div class="field",>
+                                                            <input class="button", type="submit", value="Login", />
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
