@@ -1,4 +1,6 @@
-use failure::Error;
+#![recursion_limit = "8192"]
+
+use failure::{format_err, Error};
 use serde_derive::{Deserialize, Serialize};
 use yew::format::{Json, Nothing};
 use yew::services::fetch::{FetchService, FetchTask, Request, Response};
@@ -33,17 +35,13 @@ enum Scene {
 enum Msg {
     FetchConfig,
     FetchConfigDone(Result<Config, Error>),
-    FetchConfigError,
     LoginRegisterFormDataChange(LoginRegisterFormDataField, String),
     Login,
     LoginDone(Result<LoginResponse, Error>),
-    LoginError,
     Register,
     RegisterDone(Result<RegisterResponse, Error>),
-    RegisterError,
     Logout,
     LogoutDone(Result<LogoutResponse, Error>),
-    LogoutError,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -129,15 +127,18 @@ impl Component for Model {
                                 if meta.status.is_success() {
                                     Msg::FetchConfigDone(data)
                                 } else {
-                                    Msg::FetchConfigError
+                                    Msg::FetchConfigDone(Err(format_err!(
+                                        "{}: could not fetch /config.json",
+                                        meta.status
+                                    )))
                                 }
                             },
                         ),
                     ));
                 false
             }
-            Msg::FetchConfigDone(response) => {
-                self.config = response.ok();
+            Msg::FetchConfigDone(Ok(response)) => {
+                self.config = Some(response);
 
                 self.console_service
                     .log(&format!("Configuration was fetched.\n{:#?}", self.config));
@@ -149,7 +150,7 @@ impl Component for Model {
                 };
                 true
             }
-            Msg::FetchConfigError => {
+            Msg::FetchConfigDone(Err(_)) => {
                 self.scene = Scene::FetchConfigError;
                 true
             }
@@ -171,7 +172,10 @@ impl Component for Model {
                                     if meta.status.is_success() {
                                         Msg::LoginDone(data)
                                     } else {
-                                        Msg::LoginError
+                                        Msg::LoginDone(Err(format_err!(
+                                            "{}: could not login",
+                                            meta.status
+                                        )))
                                     }
                                 },
                             ),
@@ -180,15 +184,13 @@ impl Component for Model {
                 };
                 true
             }
-            Msg::LoginDone(response) => {
-                self.state.token = response
-                    .map(|login_response| login_response.token.unwrap())
-                    .ok();
+            Msg::LoginDone(Ok(login_response)) => {
+                self.state.token = Some(login_response.token.unwrap());
                 self.storage_service.store(KEY, Json(&self.state));
                 self.scene = Scene::LoggedIn;
                 true
             }
-            Msg::LoginError => {
+            Msg::LoginDone(Err(_)) => {
                 self.loginregister_error = Some("Could not login".into());
                 true
             }
@@ -210,7 +212,10 @@ impl Component for Model {
                                     if meta.status.is_success() {
                                         Msg::RegisterDone(data)
                                     } else {
-                                        Msg::RegisterError
+                                        Msg::RegisterDone(Err(format_err!(
+                                            "{}: could not register",
+                                            meta.status
+                                        )))
                                     }
                                 },
                             ),
@@ -219,15 +224,13 @@ impl Component for Model {
                 };
                 true
             }
-            Msg::RegisterDone(response) => {
-                self.state.token = response
-                    .map(|register_response| register_response.token.unwrap())
-                    .ok();
+            Msg::RegisterDone(Ok(register_response)) => {
+                self.state.token = Some(register_response.token.unwrap());
                 self.storage_service.store(KEY, Json(&self.state));
                 self.scene = Scene::LoggedIn;
                 true
             }
-            Msg::RegisterError => {
+            Msg::RegisterDone(Err(_)) => {
                 self.loginregister_error = Some("Could not register".into());
                 true
             }
@@ -262,7 +265,10 @@ impl Component for Model {
                                     if meta.status.is_success() {
                                         Msg::LogoutDone(data)
                                     } else {
-                                        Msg::LogoutError
+                                        Msg::LogoutDone(Err(format_err!(
+                                            "{}: could not logout",
+                                            meta.status
+                                        )))
                                     }
                                 },
                             ),
@@ -271,14 +277,14 @@ impl Component for Model {
                 };
                 false
             }
-            Msg::LogoutDone(_response) => {
+            Msg::LogoutDone(Ok(_)) => {
                 self.state.token = None;
                 self.storage_service.store(KEY, Json(&self.state));
                 self.loginregister_error = None;
                 self.scene = Scene::LoginRegister;
                 true
             }
-            Msg::LogoutError => {
+            Msg::LogoutDone(Err(_)) => {
                 self.logout_error = Some("Could not logout".into());
                 true
             }
@@ -291,83 +297,64 @@ impl Renderable<Model> for Model {
     fn view(&self) -> Html<Self> {
         match self.scene {
             Scene::Loading => html! {
-                <body>
-                    <h3 style="text-align: center;",>
-                        { "Application is loading.." }
-                    </h3>
-                </body>
-            },
-            Scene::LoginRegister => html! {
-                <body class="login-body",>
-                    <div class="login-div",>
-                            <input class="login-input",
-                                oninput=|e| {
-                                    Msg::LoginRegisterFormDataChange(LoginRegisterFormDataField::Username, e.value)
-                                },
-                                type="text",
-                                placeholder="username", />
-                            <input class="login-input",
-                                oninput=|e| {
-                                    Msg::LoginRegisterFormDataChange(LoginRegisterFormDataField::Password, e.value)
-                                },
-                                type="text",
-                                placeholder="password", />
-
-                            <button class="login-button", style="left: 20px", onclick=|_| Msg::Register,>
-                                { "Register" }
-                            </button>
-                            <button class="login-button", style="right: 20px", onclick=|_| Msg::Login,>
-                                { "Login" }
-                            </button>
-                    </div>
-                    <p>
-                        {
-                            if let Some(msg) = &self.loginregister_error {
-                                &msg
-                            } else {
-                                ""
-                            }
-                        }
-                    </p>
-                </body>
-            },
-            Scene::FetchConfigError => html! {
-                <body>
-                    <h3 style="text-align: center;",>
-                        { "Application configuration could not be loaded,
-                            please reload the page to try again." }
-                    </h3>
-                </body>
-            },
-            Scene::LoggedIn => html! {
-                <body class="login-body",>
-                    <div class="login-div",>
-                        <h3 style="text-align: center;",>
-                            {
-                                if let Some(token) = &self.state.token {
-                                    format!("Logged in with token {}", token)
-                                } else {
-                                    String::new()
-                                }
-                            }
-                        </h3>
-                        <div style="text-align: center;",>
-                            <button style="line-height: 20px;", onclick=|_| Msg::Logout,>
-                                { "Logout" }
-                            </button>
+                <section class="hero is-fullheight",>
+                    <div class="hero-body",>
+                        <div class="container",>
+                            <div class="columns is-centered is-vcentered",>
+                                <div class="column is-one-fifth",>
+                                    <progress class="progress is-medium is-dark", max="100", />
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <p>
-                        {
-                            if let Some(msg) = &self.logout_error {
-                                &msg
-                            } else {
-                                ""
-                            }
-                        }
-                    </p>
-                </body>
+                </section>
             },
+            Scene::LoginRegister => html! {
+                <section class="hero is-fullheight",>
+                    <div class="hero-body",>
+                        <div class="container",>
+                            <div class="columns is-centered is-vcentered",>
+                                <div class="column is-one-quarter",>
+                                    <div class="box",>
+                                        <form>
+                                            <div class="field",>
+                                                <div class="control has-icons-left",>
+                                                    <input class="input", type="text", placeholder="Username", />
+                                                    <span class="icon is-small is-left",>
+                                                        <i class="fas fa-user",/>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div class="field",>
+                                                <div class="control has-icons-left",>
+                                                    <input class="input", type="text", placeholder="Password", />
+                                                    <span class="icon is-small is-left",>
+                                                        <i class="fas fa-lock",/>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div class="level",>
+                                                <div class="level-left",>
+                                                    <div class="field",>
+                                                        <input class="button", type="submit", value="Register", />
+                                                    </div>
+                                                </div>
+                                                <div class="level-right",>
+                                                    <div class="field",>
+                                                        <input class="button", type="submit", value="Login", />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            },
+            Scene::FetchConfigError => html! {},
+            Scene::LoggedIn => html! {},
         }
     }
 }
