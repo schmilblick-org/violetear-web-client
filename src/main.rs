@@ -27,7 +27,6 @@ struct Model {
 }
 
 enum Scene {
-    Loading,
     LoginRegister,
     FetchConfigError,
     LoggedIn,
@@ -110,7 +109,7 @@ impl Component for Model {
             ft: None,
             storage_service,
             config: None,
-            scene: Scene::Loading,
+            scene: Scene::LoginRegister,
             loginregister_error: None,
             loginregister_form: LoginRegisterFormData::default(),
             logout_error: None,
@@ -145,11 +144,9 @@ impl Component for Model {
                 self.console_service
                     .log(&format!("Configuration was fetched.\n{:#?}", self.config));
 
-                self.scene = if self.state.token.is_some() {
-                    Scene::LoggedIn
-                } else {
-                    Scene::LoginRegister
-                };
+                if self.state.token.is_some() {
+                    self.scene = Scene::LoggedIn;
+                }
                 true
             }
             Msg::FetchConfigDone(Err(_)) => {
@@ -301,25 +298,12 @@ impl Component for Model {
 impl Renderable<Model> for Model {
     fn view(&self) -> Html<Self> {
         match self.scene {
-            Scene::Loading => html! {
-                <section class="hero is-fullheight",>
-                    <div class="hero-body",>
-                        <div class="container",>
-                            <div class="columns is-centered is-vcentered",>
-                                <div class="column is-one-fifth",>
-                                    <progress class="progress is-medium is-dark", max="100", />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-            },
             Scene::LoginRegister => html! {
                 <section class="hero is-fullheight",>
                     <div class="hero-body",>
                         <div class="container",>
                             <div class="columns is-centered is-vcentered is-mobile",>
-                                <div class="column is-narrow", style="width: 250px;",>
+                                <div class="column is-narrow", style="max-width: 350px;",>
                                     <div class="box",>
                                         <form onsubmit=|e| { e.prevent_default(); Msg::LogEvent(e) },>
                                             <div class="field",>
