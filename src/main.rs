@@ -9,6 +9,7 @@ use yew::services::console::ConsoleService;
 use stdweb::web::event::IEvent;
 
 use yew::{html, Component, ComponentLink, Html, Renderable, ShouldRender};
+use yew::virtual_dom::{VNode, VList};
 
 const KEY: &str = "violetear.web-client.database";
 
@@ -42,7 +43,7 @@ enum Msg {
     RegisterDone(Result<RegisterResponse, Error>),
     Logout,
     LogoutDone(Result<LogoutResponse, Error>),
-    LogEvent(stdweb::web::event::SubmitEvent),
+    NoOp,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -287,10 +288,7 @@ impl Component for Model {
                 self.logout_error = Some("Could not logout".into());
                 true
             }
-            Msg::LogEvent(e) => {
-                self.console_service.log(&format!("{:#?}", e));
-                false
-            }
+            Msg::NoOp => false,
         }
     }
 }
@@ -302,13 +300,35 @@ impl Renderable<Model> for Model {
                 <section class="hero is-fullheight",>
                     <div class="hero-body",>
                         <div class="container",>
-                            <div class="columns is-centered is-vcentered is-mobile",>
-                                <div class="column is-narrow", style="max-width: 350px;",>
+                            <div class="columns is-centered is-vcentered",>
+                                <div class="column", style="max-width: 350px;",>
+                                    {
+                                        if let Some(error) = &self.loginregister_error {
+                                            html! {
+                                                <p class="has-text-centered", style="margin-top: 1em; margin-bottom: 1em;",>
+                                                    <span class="icon has-text-danger",>
+                                                        <i class="fas fa-info-circle",></i>
+                                                    </span>
+                                                    { error }
+                                                </p>
+                                            }
+                                        } else {
+                                            html! {
+                                                <p class="has-text-centered", style="margin-top: 1em; margin-bottom: 1em;",>
+                                                    <span class="icon has-text-info",>
+                                                        <i class="fas fa-info-circle",></i>
+                                                    </span>
+                                                    { "Fill the form below" }
+                                                </p>
+                                            }
+                                        }
+                                    }
                                     <div class="box",>
-                                        <form onsubmit=|e| { e.prevent_default(); Msg::LogEvent(e) },>
+                                        <form onsubmit=|e| { e.prevent_default(); Msg::Login },>
                                             <div class="field",>
                                                 <div class="control has-icons-left",>
-                                                    <input class="input", type="text", placeholder="Username", />
+                                                    <input class="input", type="text", placeholder="Username",
+                                                        oninput=|e| Msg::LoginRegisterFormDataChange(LoginRegisterFormDataField::Username, e.value), />
                                                     <span class="icon is-small is-left",>
                                                         <i class="fas fa-user",/>
                                                     </span>
@@ -316,7 +336,8 @@ impl Renderable<Model> for Model {
                                             </div>
                                             <div class="field",>
                                                 <div class="control has-icons-left",>
-                                                    <input class="input", type="password", placeholder="Password", />
+                                                    <input class="input", type="password", placeholder="Password",
+                                                        oninput=|e| Msg::LoginRegisterFormDataChange(LoginRegisterFormDataField::Password, e.value), />
                                                     <span class="icon is-small is-left",>
                                                         <i class="fas fa-lock",/>
                                                     </span>
@@ -326,14 +347,16 @@ impl Renderable<Model> for Model {
                                                 <div class="level-left",>
                                                     <div class="level-item",>
                                                         <div class="field",>
-                                                            <input class="button", type="submit", value="Register", />
+                                                            <input class="button", type="button", value="Register",
+                                                                onclick=|_| Msg::Register, />
                                                         </div>
                                                     </div>
                                                 </div>
                                                 <div class="level-right",>
                                                     <div class="level-item",>
                                                         <div class="field",>
-                                                            <input class="button", type="submit", value="Login", />
+                                                            <input class="button", type="button", value="Login",
+                                                                onclick=|_| Msg::Login, />
                                                         </div>
                                                     </div>
                                                 </div>
@@ -346,8 +369,47 @@ impl Renderable<Model> for Model {
                     </div>
                 </section>
             },
-            Scene::FetchConfigError => html! {},
-            Scene::LoggedIn => html! {},
+            Scene::FetchConfigError => html! {
+                <section class="hero is-fullheight",>
+                    <div class="hero-body",>
+                        <div class="container",>
+                            <div class="columns is-centered is-vcentered is-mobile",>
+                                <div class="column is-narrow is-one-third",>
+                                    <span class="icon has-text-danger",>
+                                        <i class="fas fa-info-circle", />
+                                    </span>
+                                    { "Could not fetch configuration, please reload to try again." }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            },
+            Scene::LoggedIn => html! {
+                <section class="hero is-fullheight",>
+                    <div class="hero-body",>
+                        <div class="container",>
+                            <div class="columns is-centered is-vcentered is-mobile",>
+                                <div class="column is-narrow is-one-third",>
+                                    <div class="file is-boxed",>
+                                    <label class="file-label",>
+                                        <input class="file-input", type="file", name="resume", />
+                                        <span class="file-cta",>
+                                        <span class="file-icon",>
+                                            <i class="fas fa-upload",></i>
+                                        </span>
+                                        <span class="file-label",>
+                                            { "Drag to scan" }
+                                        </span>
+                                        </span>
+                                    </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            },
         }
     }
 }
