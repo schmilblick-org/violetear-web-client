@@ -28,6 +28,7 @@ struct Model {
 }
 
 enum Scene {
+    Loading,
     LoginRegister,
     FetchConfigError,
     LoggedIn,
@@ -110,7 +111,7 @@ impl Component for Model {
             ft: None,
             storage_service,
             config: None,
-            scene: Scene::LoginRegister,
+            scene: Scene::Loading,
             loginregister_error: None,
             loginregister_form: LoginRegisterFormData::default(),
             logout_error: None,
@@ -296,6 +297,19 @@ impl Component for Model {
 impl Renderable<Model> for Model {
     fn view(&self) -> Html<Self> {
         match self.scene {
+            Scene::Loading => html! {
+                <section class="hero is-fullheight",>
+                    <div class="hero-body",>
+                        <div class="container",>
+                            <div class="columns is-centered is-vcentered is-mobile",>
+                                <div class="column", style="max-width: 250px;",>
+                                    <progress class="progress is-medium is-dark", max="100", />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            },
             Scene::LoginRegister => html! {
                 <section class="hero is-fullheight",>
                     <div class="hero-body",>
@@ -391,18 +405,21 @@ impl Renderable<Model> for Model {
                         <div class="container",>
                             <div class="columns is-centered is-vcentered is-mobile",>
                                 <div class="column is-narrow is-one-third",>
-                                    <div class="file is-boxed",>
-                                    <label class="file-label",>
-                                        <input class="file-input", type="file", name="resume", />
-                                        <span class="file-cta",>
-                                        <span class="file-icon",>
-                                            <i class="fas fa-upload",></i>
-                                        </span>
-                                        <span class="file-label",>
-                                            { "Drag to scan" }
-                                        </span>
-                                        </span>
-                                    </label>
+                                    <div class="file is-boxed is-centered",>
+                                        <label class="file-label",>
+                                            <input class="file-input", type="file", name="resume", />
+                                            <span class="file-cta",>
+                                                <span class="file-icon",>
+                                                    <i class="fas fa-upload",></i>
+                                                </span>
+                                                <span class="file-label",>
+                                                    { "Drag to scan" }
+                                                </span>
+                                            </span>
+                                        </label>
+                                    </div>
+                                    <div class="has-text-centered", style="margin-top: 2em; margin-bottom: 2em;",>
+                                        <input class="button", type="button", value="Logout", onclick=|_| Msg::Logout, />
                                     </div>
                                 </div>
                             </div>
