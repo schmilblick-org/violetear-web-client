@@ -316,8 +316,8 @@ impl Renderable<Model> for Model {
                 <section class="hero is-fullheight",>
                     <div class="hero-body",>
                         <div class="container",>
-                            <div class="columns is-centered is-vcentered",>
-                                <div class="column", style="max-width: 350px;",>
+                            <div class="columns is-centered is-vcentered is-mobile",>
+                                <div class="column", style="max-width: 300px;",>
                                     {
                                         if let Some(error) = &self.loginregister_error {
                                             html! {
@@ -339,7 +339,7 @@ impl Renderable<Model> for Model {
                                             }
                                         }
                                     }
-                                    <div class="box",>
+                                    <div class="box is-centered",>
                                         <form onsubmit=|e| { e.prevent_default(); Msg::Login },>
                                             <div class="field",>
                                                 <div class="control has-icons-left",>
@@ -390,11 +390,13 @@ impl Renderable<Model> for Model {
                     <div class="hero-body",>
                         <div class="container",>
                             <div class="columns is-centered is-vcentered is-mobile",>
-                                <div class="column is-narrow is-one-third",>
-                                    <span class="icon has-text-danger",>
-                                        <i class="fas fa-info-circle", />
-                                    </span>
-                                    { "Could not fetch configuration, please reload to try again." }
+                                <div class="column",>
+                                    <div class="has-text-centered",>
+                                        <span class="icon has-text-danger",>
+                                            <i class="fas fa-info-circle", />
+                                        </span>
+                                        { "Could not fetch configuration, please reload to try again." }
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -406,7 +408,7 @@ impl Renderable<Model> for Model {
                     <div class="hero-body",>
                         <div class="container",>
                             <div class="columns is-centered is-vcentered is-mobile",>
-                                <div class="column is-narrow is-one-third",>
+                                <div class="column",>
                                     <div class="file is-boxed is-centered",>
                                         <label class="file-label",>
                                             <input class="file-input", type="file", name="resume", />
