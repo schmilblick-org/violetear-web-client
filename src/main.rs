@@ -148,6 +148,8 @@ impl Component for Model {
 
                 if self.state.token.is_some() {
                     self.scene = Scene::LoggedIn;
+                } else {
+                    self.scene = Scene::LoginRegister;
                 }
                 true
             }
