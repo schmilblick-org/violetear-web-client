@@ -284,6 +284,7 @@ impl Component for Model {
                         token: self.state.token.as_ref().unwrap().to_owned(),
                     };
 
+                    self.logout_error = None;
                     self.is_logout_disabled = true;
                     self.is_logout_loading = true;
 
@@ -466,7 +467,10 @@ impl Renderable<Model> for Model {
                                         </label>
                                     </div>
                                     <div class="has-text-centered", style="margin-top: 2em; margin-bottom: 2em;",>
-                                        <button class=if self.is_logout_loading { "button is-loading" } else { "button" }, type="button",
+                                        <button class=format!("button {} {}",
+                                            if self.is_logout_loading { "is-loading" } else {""},
+                                            if self.logout_error.is_some() {"is-danger"} else {""}),
+                                            type="button",
                                             disabled=self.is_logout_disabled,
                                             onclick=|_| Msg::Logout,>
                                             { "Logout" }
