@@ -25,6 +25,12 @@ struct Model {
     loginregister_error: Option<String>,
     loginregister_form: LoginRegisterFormData,
     logout_error: Option<String>,
+    is_register_disabled: bool,
+    is_register_loading: bool,
+    is_login_loading: bool,
+    is_login_disabled: bool,
+    is_logout_loading: bool,
+    is_logout_disabled: bool,
 }
 
 enum Scene {
@@ -108,13 +114,19 @@ impl Component for Model {
             state,
             fetch_service: FetchService::new(),
             console_service: ConsoleService::new(),
-            ft: None,
             storage_service,
-            config: None,
             scene: Scene::Loading,
+            ft: None,
+            config: None,
             loginregister_error: None,
             loginregister_form: LoginRegisterFormData::default(),
             logout_error: None,
+            is_register_disabled: false,
+            is_register_loading: false,
+            is_login_loading: false,
+            is_login_disabled: false,
+            is_logout_loading: false,
+            is_logout_disabled: false,
         }
     }
 
@@ -159,6 +171,9 @@ impl Component for Model {
             }
             Msg::Login => {
                 self.loginregister_error = None;
+                self.is_register_disabled = true;
+                self.is_login_loading = true;
+                self.is_login_disabled = true;
 
                 if let Some(config) = &self.config {
                     self.ft = Some(
@@ -191,14 +206,23 @@ impl Component for Model {
                 self.state.token = Some(login_response.token.unwrap());
                 self.storage_service.store(KEY, Json(&self.state));
                 self.scene = Scene::LoggedIn;
+                self.is_register_disabled = false;
+                self.is_login_loading = false;
+                self.is_login_disabled = false;
                 true
             }
             Msg::LoginDone(Err(_)) => {
+                self.is_register_disabled = false;
+                self.is_login_loading = false;
+                self.is_login_disabled = false;
                 self.loginregister_error = Some("Could not login".into());
                 true
             }
             Msg::Register => {
                 self.loginregister_error = None;
+                self.is_register_disabled = true;
+                self.is_register_loading = true;
+                self.is_login_disabled = true;
 
                 if let Some(config) = &self.config {
                     self.ft = Some(
@@ -228,12 +252,18 @@ impl Component for Model {
                 true
             }
             Msg::RegisterDone(Ok(register_response)) => {
+                self.is_register_disabled = false;
+                self.is_register_loading = false;
+                self.is_login_disabled = false;
                 self.state.token = Some(register_response.token.unwrap());
                 self.storage_service.store(KEY, Json(&self.state));
                 self.scene = Scene::LoggedIn;
                 true
             }
             Msg::RegisterDone(Err(_)) => {
+                self.is_register_disabled = false;
+                self.is_register_loading = false;
+                self.is_login_disabled = false;
                 self.loginregister_error = Some("Could not register".into());
                 true
             }
@@ -253,6 +283,9 @@ impl Component for Model {
                     let logout = Logout {
                         token: self.state.token.as_ref().unwrap().to_owned(),
                     };
+
+                    self.is_logout_disabled = true;
+                    self.is_logout_loading = true;
 
                     self.ft = Some(
                         self.fetch_service.fetch(
@@ -278,9 +311,11 @@ impl Component for Model {
                         ),
                     )
                 };
-                false
+                true
             }
             Msg::LogoutDone(Ok(_)) => {
+                self.is_logout_disabled = false;
+                self.is_logout_loading = false;
                 self.state.token = None;
                 self.storage_service.store(KEY, Json(&self.state));
                 self.loginregister_error = None;
@@ -288,6 +323,8 @@ impl Component for Model {
                 true
             }
             Msg::LogoutDone(Err(_)) => {
+                self.is_logout_disabled = false;
+                self.is_logout_loading = false;
                 self.logout_error = Some("Could not logout".into());
                 true
             }
@@ -363,16 +400,22 @@ impl Renderable<Model> for Model {
                                                 <div class="level-left",>
                                                     <div class="level-item",>
                                                         <div class="field",>
-                                                            <input class="button", type="button", value="Register",
-                                                                onclick=|_| Msg::Register, />
+                                                            <button class=if self.is_register_loading { "button is-loading" } else { "button" }, type="submit",
+                                                                disabled=self.is_register_disabled,
+                                                                onclick=|_| Msg::Register,>
+                                                                { "Register" }
+                                                            </button>
                                                         </div>
                                                     </div>
                                                 </div>
                                                 <div class="level-right",>
                                                     <div class="level-item",>
                                                         <div class="field",>
-                                                            <input class="button", type="button", value="Login",
-                                                                onclick=|_| Msg::Login, />
+                                                            <button class=if self.is_login_loading { "button is-loading" } else { "button" }, type="submit",
+                                                                disabled=self.is_login_disabled,
+                                                                onclick=|_| Msg::Login,>
+                                                                { "Login" }
+                                                            </button>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -423,7 +466,11 @@ impl Renderable<Model> for Model {
                                         </label>
                                     </div>
                                     <div class="has-text-centered", style="margin-top: 2em; margin-bottom: 2em;",>
-                                        <input class="button", type="button", value="Logout", onclick=|_| Msg::Logout, />
+                                        <button class=if self.is_logout_loading { "button is-loading" } else { "button" }, type="button",
+                                            disabled=self.is_logout_disabled,
+                                            onclick=|_| Msg::Logout,>
+                                            { "Logout" }
+                                        </button>
                                     </div>
                                 </div>
                             </div>
