@@ -455,7 +455,7 @@ impl Renderable<Model> for Model {
                                 <div class="column",>
                                     <div class="file is-boxed is-centered",>
                                         <label class="file-label",>
-                                            <input class="file-input", type="file", name="resume", />
+                                            <input class="file-input", type="file", />
                                             <span class="file-cta",>
                                                 <span class="file-icon",>
                                                     <i class="fas fa-upload",></i>
