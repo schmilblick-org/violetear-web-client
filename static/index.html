@@ -25,4 +25,11 @@
       </div>
     </div>
   </section>
+
+  <script type="text/javascript">
+    if (typeof WebAssembly == "undefined") {
+      alert("This website requires WebAssembly and your web browser does not support it.")
+      location.href = "https://webassembly.org/"
+    }
+  </script>
 </body>
