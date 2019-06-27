@@ -6,10 +6,8 @@ use yew::format::{Json, Nothing};
 use yew::services::fetch::{FetchService, FetchTask, Request, Response};
 use yew::services::storage::{Area, StorageService};
 use yew::services::console::ConsoleService;
-use stdweb::web::event::IEvent;
 
 use yew::{html, Component, ComponentLink, Html, Renderable, ShouldRender};
-use yew::virtual_dom::{VNode, VList};
 
 const KEY: &str = "violetear.web-client.database";
 
@@ -378,50 +376,48 @@ impl Renderable<Model> for Model {
                                         }
                                     }
                                     <div class="box is-centered",>
-                                        <form onsubmit=|e| { e.prevent_default(); Msg::Login },>
-                                            <div class="field",>
-                                                <div class="control has-icons-left",>
-                                                    <input class="input", type="text", placeholder="Username",
-                                                        oninput=|e| Msg::LoginRegisterFormDataChange(LoginRegisterFormDataField::Username, e.value), />
-                                                    <span class="icon is-small is-left",>
-                                                        <i class="fas fa-user",/>
-                                                    </span>
-                                                </div>
+                                        <div class="field",>
+                                            <div class="control has-icons-left",>
+                                                <input class="input", type="text", placeholder="Username",
+                                                    oninput=|e| Msg::LoginRegisterFormDataChange(LoginRegisterFormDataField::Username, e.value), />
+                                                <span class="icon is-small is-left",>
+                                                    <i class="fas fa-user",/>
+                                                </span>
                                             </div>
-                                            <div class="field",>
-                                                <div class="control has-icons-left",>
-                                                    <input class="input", type="password", placeholder="Password",
-                                                        oninput=|e| Msg::LoginRegisterFormDataChange(LoginRegisterFormDataField::Password, e.value), />
-                                                    <span class="icon is-small is-left",>
-                                                        <i class="fas fa-lock",/>
-                                                    </span>
-                                                </div>
+                                        </div>
+                                        <div class="field",>
+                                            <div class="control has-icons-left",>
+                                                <input class="input", type="password", placeholder="Password",
+                                                    oninput=|e| Msg::LoginRegisterFormDataChange(LoginRegisterFormDataField::Password, e.value), />
+                                                <span class="icon is-small is-left",>
+                                                    <i class="fas fa-lock",/>
+                                                </span>
                                             </div>
-                                            <div class="level is-mobile",>
-                                                <div class="level-left",>
-                                                    <div class="level-item",>
-                                                        <div class="field",>
-                                                            <button class=if self.is_register_loading { "button is-loading" } else { "button" }, type="submit",
-                                                                disabled=self.is_register_disabled,
-                                                                onclick=|_| Msg::Register,>
-                                                                { "Register" }
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div class="level-right",>
-                                                    <div class="level-item",>
-                                                        <div class="field",>
-                                                            <button class=if self.is_login_loading { "button is-loading" } else { "button" }, type="submit",
-                                                                disabled=self.is_login_disabled,
-                                                                onclick=|_| Msg::Login,>
-                                                                { "Login" }
-                                                            </button>
-                                                        </div>
+                                        </div>
+                                        <div class="level is-mobile",>
+                                            <div class="level-left",>
+                                                <div class="level-item",>
+                                                    <div class="field",>
+                                                        <button class=if self.is_register_loading { "button is-loading" } else { "button" }, type="button",
+                                                            disabled=self.is_register_disabled,
+                                                            onclick=|_| Msg::Register,>
+                                                            { "Register" }
+                                                        </button>
                                                     </div>
                                                 </div>
                                             </div>
-                                        </form>
+                                            <div class="level-right",>
+                                                <div class="level-item",>
+                                                    <div class="field",>
+                                                        <button class=if self.is_login_loading { "button is-loading" } else { "button" }, type="button",
+                                                            disabled=self.is_login_disabled,
+                                                            onclick=|_| Msg::Login,>
+                                                            { "Login" }
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

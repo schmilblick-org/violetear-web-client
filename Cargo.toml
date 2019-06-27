@@ -5,8 +5,8 @@ authors = ["lle-bout"]
 edition = "2018"
 
 [dependencies]
-yew = "0.6.0"
-serde = "1.0"
-serde_derive = "1.0"
+yew = "0.6"
+serde = "1"
+serde_derive = "1"
 failure = "0.1"
 stdweb = "0.4"
