@@ -12,8 +12,6 @@ stages:
   - test
   - build_docker_image
   - deploy
-  - staging
-  - production
 
 build:
   stage: build
@@ -74,7 +72,7 @@ test:
     - build
 
 staging:
-  stage: staging
+  stage: deploy
   image: fedora # Because it has curl
   script:
     - |
@@ -88,9 +86,12 @@ staging:
     - curl --data "name=staging-client&port=5002&image=${CI_APPLICATION_REPOSITORY}:${CI_APPLICATION_TAG}&token=${DEPLOY_TOKEN}&image_port=80&" ${DEPLOY_ENDPOINT}
   only:
     - staging
+  environment:
+    name: staging
+    url: https://staging.web-client.violetear.proxmox-1.schmilblick.org
 
 production:
-  stage: production
+  stage: deploy
   image: fedora # Because it has curl
   script:
     - |
@@ -104,6 +105,9 @@ production:
     - curl --data "name=production-client&port=5003&image=${CI_APPLICATION_REPOSITORY}:${CI_APPLICATION_TAG}&token=${DEPLOY_TOKEN}&image_port=80&" ${DEPLOY_ENDPOINT}
   only:
     - production
+  environment:
+    name: production
+    url: https://production.web-client.violetear.proxmox-1.schmilblick.org
 
 bootstrap:
   image: docker:stable
