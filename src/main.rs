@@ -1,4 +1,6 @@
-use failure::Error;
+#![recursion_limit = "8192"]
+
+use failure::{format_err, Error};
 use serde_derive::{Deserialize, Serialize};
 use yew::format::{Json, Nothing};
 use yew::services::fetch::{FetchService, FetchTask, Request, Response};
@@ -21,6 +23,12 @@ struct Model {
     loginregister_error: Option<String>,
     loginregister_form: LoginRegisterFormData,
     logout_error: Option<String>,
+    is_register_disabled: bool,
+    is_register_loading: bool,
+    is_login_loading: bool,
+    is_login_disabled: bool,
+    is_logout_loading: bool,
+    is_logout_disabled: bool,
 }
 
 enum Scene {
@@ -33,17 +41,14 @@ enum Scene {
 enum Msg {
     FetchConfig,
     FetchConfigDone(Result<Config, Error>),
-    FetchConfigError,
     LoginRegisterFormDataChange(LoginRegisterFormDataField, String),
     Login,
     LoginDone(Result<LoginResponse, Error>),
-    LoginError,
     Register,
     RegisterDone(Result<RegisterResponse, Error>),
-    RegisterError,
     Logout,
     LogoutDone(Result<LogoutResponse, Error>),
-    LogoutError,
+    NoOp,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -107,13 +112,19 @@ impl Component for Model {
             state,
             fetch_service: FetchService::new(),
             console_service: ConsoleService::new(),
-            ft: None,
             storage_service,
-            config: None,
             scene: Scene::Loading,
+            ft: None,
+            config: None,
             loginregister_error: None,
             loginregister_form: LoginRegisterFormData::default(),
             logout_error: None,
+            is_register_disabled: false,
+            is_register_loading: false,
+            is_login_loading: false,
+            is_login_disabled: false,
+            is_logout_loading: false,
+            is_logout_disabled: false,
         }
     }
 
@@ -129,32 +140,38 @@ impl Component for Model {
                                 if meta.status.is_success() {
                                     Msg::FetchConfigDone(data)
                                 } else {
-                                    Msg::FetchConfigError
+                                    Msg::FetchConfigDone(Err(format_err!(
+                                        "{}: could not fetch /config.json",
+                                        meta.status
+                                    )))
                                 }
                             },
                         ),
                     ));
                 false
             }
-            Msg::FetchConfigDone(response) => {
-                self.config = response.ok();
+            Msg::FetchConfigDone(Ok(response)) => {
+                self.config = Some(response);
 
                 self.console_service
                     .log(&format!("Configuration was fetched.\n{:#?}", self.config));
 
-                self.scene = if self.state.token.is_some() {
-                    Scene::LoggedIn
+                if self.state.token.is_some() {
+                    self.scene = Scene::LoggedIn;
                 } else {
-                    Scene::LoginRegister
-                };
+                    self.scene = Scene::LoginRegister;
+                }
                 true
             }
-            Msg::FetchConfigError => {
+            Msg::FetchConfigDone(Err(_)) => {
                 self.scene = Scene::FetchConfigError;
                 true
             }
             Msg::Login => {
                 self.loginregister_error = None;
+                self.is_register_disabled = true;
+                self.is_login_loading = true;
+                self.is_login_disabled = true;
 
                 if let Some(config) = &self.config {
                     self.ft = Some(
@@ -171,7 +188,10 @@ impl Component for Model {
                                     if meta.status.is_success() {
                                         Msg::LoginDone(data)
                                     } else {
-                                        Msg::LoginError
+                                        Msg::LoginDone(Err(format_err!(
+                                            "{}: could not login",
+                                            meta.status
+                                        )))
                                     }
                                 },
                             ),
@@ -180,20 +200,27 @@ impl Component for Model {
                 };
                 true
             }
-            Msg::LoginDone(response) => {
-                self.state.token = response
-                    .map(|login_response| login_response.token.unwrap())
-                    .ok();
+            Msg::LoginDone(Ok(login_response)) => {
+                self.state.token = Some(login_response.token.unwrap());
                 self.storage_service.store(KEY, Json(&self.state));
                 self.scene = Scene::LoggedIn;
+                self.is_register_disabled = false;
+                self.is_login_loading = false;
+                self.is_login_disabled = false;
                 true
             }
-            Msg::LoginError => {
+            Msg::LoginDone(Err(_)) => {
+                self.is_register_disabled = false;
+                self.is_login_loading = false;
+                self.is_login_disabled = false;
                 self.loginregister_error = Some("Could not login".into());
                 true
             }
             Msg::Register => {
                 self.loginregister_error = None;
+                self.is_register_disabled = true;
+                self.is_register_loading = true;
+                self.is_login_disabled = true;
 
                 if let Some(config) = &self.config {
                     self.ft = Some(
@@ -210,7 +237,10 @@ impl Component for Model {
                                     if meta.status.is_success() {
                                         Msg::RegisterDone(data)
                                     } else {
-                                        Msg::RegisterError
+                                        Msg::RegisterDone(Err(format_err!(
+                                            "{}: could not register",
+                                            meta.status
+                                        )))
                                     }
                                 },
                             ),
@@ -219,15 +249,19 @@ impl Component for Model {
                 };
                 true
             }
-            Msg::RegisterDone(response) => {
-                self.state.token = response
-                    .map(|register_response| register_response.token.unwrap())
-                    .ok();
+            Msg::RegisterDone(Ok(register_response)) => {
+                self.is_register_disabled = false;
+                self.is_register_loading = false;
+                self.is_login_disabled = false;
+                self.state.token = Some(register_response.token.unwrap());
                 self.storage_service.store(KEY, Json(&self.state));
                 self.scene = Scene::LoggedIn;
                 true
             }
-            Msg::RegisterError => {
+            Msg::RegisterDone(Err(_)) => {
+                self.is_register_disabled = false;
+                self.is_register_loading = false;
+                self.is_login_disabled = false;
                 self.loginregister_error = Some("Could not register".into());
                 true
             }
@@ -248,6 +282,10 @@ impl Component for Model {
                         token: self.state.token.as_ref().unwrap().to_owned(),
                     };
 
+                    self.logout_error = None;
+                    self.is_logout_disabled = true;
+                    self.is_logout_loading = true;
+
                     self.ft = Some(
                         self.fetch_service.fetch(
                             Request::builder()
@@ -262,27 +300,34 @@ impl Component for Model {
                                     if meta.status.is_success() {
                                         Msg::LogoutDone(data)
                                     } else {
-                                        Msg::LogoutError
+                                        Msg::LogoutDone(Err(format_err!(
+                                            "{}: could not logout",
+                                            meta.status
+                                        )))
                                     }
                                 },
                             ),
                         ),
                     )
                 };
-                false
+                true
             }
-            Msg::LogoutDone(_response) => {
+            Msg::LogoutDone(Ok(_)) => {
+                self.is_logout_disabled = false;
+                self.is_logout_loading = false;
                 self.state.token = None;
                 self.storage_service.store(KEY, Json(&self.state));
                 self.loginregister_error = None;
                 self.scene = Scene::LoginRegister;
                 true
             }
-            Msg::LogoutError => {
+            Msg::LogoutDone(Err(_)) => {
+                self.is_logout_disabled = false;
+                self.is_logout_loading = false;
                 self.logout_error = Some("Could not logout".into());
                 true
             }
-            _ => false,
+            Msg::NoOp => false,
         }
     }
 }
@@ -291,82 +336,147 @@ impl Renderable<Model> for Model {
     fn view(&self) -> Html<Self> {
         match self.scene {
             Scene::Loading => html! {
-                <body>
-                    <h3 style="text-align: center;",>
-                        { "Application is loading.." }
-                    </h3>
-                </body>
-            },
-            Scene::LoginRegister => html! {
-                <body class="login-body",>
-                    <div class="login-div",>
-                            <input class="login-input",
-                                oninput=|e| {
-                                    Msg::LoginRegisterFormDataChange(LoginRegisterFormDataField::Username, e.value)
-                                },
-                                type="text",
-                                placeholder="username", />
-                            <input class="login-input",
-                                oninput=|e| {
-                                    Msg::LoginRegisterFormDataChange(LoginRegisterFormDataField::Password, e.value)
-                                },
-                                type="text",
-                                placeholder="password", />
-
-                            <button class="login-button", style="left: 20px", onclick=|_| Msg::Register,>
-                                { "Register" }
-                            </button>
-                            <button class="login-button", style="right: 20px", onclick=|_| Msg::Login,>
-                                { "Login" }
-                            </button>
-                    </div>
-                    <p>
-                        {
-                            if let Some(msg) = &self.loginregister_error {
-                                &msg
-                            } else {
-                                ""
-                            }
-                        }
-                    </p>
-                </body>
-            },
-            Scene::FetchConfigError => html! {
-                <body>
-                    <h3 style="text-align: center;",>
-                        { "Application configuration could not be loaded,
-                            please reload the page to try again." }
-                    </h3>
-                </body>
-            },
-            Scene::LoggedIn => html! {
-                <body class="login-body",>
-                    <div class="login-div",>
-                        <h3 style="text-align: center;",>
-                            {
-                                if let Some(token) = &self.state.token {
-                                    format!("Logged in with token {}", token)
-                                } else {
-                                    String::new()
-                                }
-                            }
-                        </h3>
-                        <div style="text-align: center;",>
-                            <button style="line-height: 20px;", onclick=|_| Msg::Logout,>
-                                { "Logout" }
-                            </button>
+                <section class="hero is-fullheight",>
+                    <div class="hero-body",>
+                        <div class="container",>
+                            <div class="columns is-centered is-vcentered is-mobile",>
+                                <div class="column", style="max-width: 250px;",>
+                                    <progress class="progress is-medium is-dark", max="100", />
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <p>
-                        {
-                            if let Some(msg) = &self.logout_error {
-                                &msg
-                            } else {
-                                ""
-                            }
-                        }
-                    </p>
-                </body>
+                </section>
+            },
+            Scene::LoginRegister => html! {
+                <section class="hero is-fullheight",>
+                    <div class="hero-body",>
+                        <div class="container",>
+                            <div class="columns is-centered is-vcentered is-mobile",>
+                                <div class="column", style="max-width: 300px;",>
+                                    {
+                                        if let Some(error) = &self.loginregister_error {
+                                            html! {
+                                                <p class="has-text-centered", style="margin-top: 1em; margin-bottom: 1em;",>
+                                                    <span class="icon has-text-danger",>
+                                                        <i class="fas fa-info-circle",></i>
+                                                    </span>
+                                                    { error }
+                                                </p>
+                                            }
+                                        } else {
+                                            html! {
+                                                <p class="has-text-centered", style="margin-top: 1em; margin-bottom: 1em;",>
+                                                    <span class="icon has-text-info",>
+                                                        <i class="fas fa-info-circle",></i>
+                                                    </span>
+                                                    { "Fill the form below" }
+                                                </p>
+                                            }
+                                        }
+                                    }
+                                    <div class="box is-centered",>
+                                        <div class="field",>
+                                            <div class="control has-icons-left",>
+                                                <input class="input", type="text", placeholder="Username",
+                                                    oninput=|e| Msg::LoginRegisterFormDataChange(LoginRegisterFormDataField::Username, e.value), />
+                                                <span class="icon is-small is-left",>
+                                                    <i class="fas fa-user",/>
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div class="field",>
+                                            <div class="control has-icons-left",>
+                                                <input class="input", type="password", placeholder="Password",
+                                                    oninput=|e| Msg::LoginRegisterFormDataChange(LoginRegisterFormDataField::Password, e.value), />
+                                                <span class="icon is-small is-left",>
+                                                    <i class="fas fa-lock",/>
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div class="level is-mobile",>
+                                            <div class="level-left",>
+                                                <div class="level-item",>
+                                                    <div class="field",>
+                                                        <button class=if self.is_register_loading { "button is-loading" } else { "button" }, type="button",
+                                                            disabled=self.is_register_disabled,
+                                                            onclick=|_| Msg::Register,>
+                                                            { "Register" }
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="level-right",>
+                                                <div class="level-item",>
+                                                    <div class="field",>
+                                                        <button class=if self.is_login_loading { "button is-loading" } else { "button" }, type="button",
+                                                            disabled=self.is_login_disabled,
+                                                            onclick=|_| Msg::Login,>
+                                                            { "Login" }
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            },
+            Scene::FetchConfigError => html! {
+                <section class="hero is-fullheight",>
+                    <div class="hero-body",>
+                        <div class="container",>
+                            <div class="columns is-centered is-vcentered is-mobile",>
+                                <div class="column",>
+                                    <div class="has-text-centered",>
+                                        <span class="icon has-text-danger",>
+                                            <i class="fas fa-info-circle", />
+                                        </span>
+                                        { "Could not fetch configuration, please reload to try again." }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            },
+            Scene::LoggedIn => html! {
+                <section class="hero is-fullheight",>
+                    <div class="hero-body",>
+                        <div class="container",>
+                            <div class="columns is-centered is-vcentered is-mobile",>
+                                <div class="column",>
+                                    <div class="file is-boxed is-centered",>
+                                        <label class="file-label",>
+                                            <input class="file-input", type="file", />
+                                            <span class="file-cta",>
+                                                <span class="file-icon",>
+                                                    <i class="fas fa-upload",></i>
+                                                </span>
+                                                <span class="file-label",>
+                                                    { "Drag to scan" }
+                                                </span>
+                                            </span>
+                                        </label>
+                                    </div>
+                                    <div class="has-text-centered", style="margin-top: 2em; margin-bottom: 2em;",>
+                                        <button class=format!("button {} {}",
+                                            if self.is_logout_loading { "is-loading" } else {""},
+                                            if self.logout_error.is_some() {"is-danger"} else {""}),
+                                            type="button",
+                                            disabled=self.is_logout_disabled,
+                                            onclick=|_| Msg::Logout,>
+                                            { "Logout" }
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
             },
         }
     }

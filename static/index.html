@@ -1,41 +1,35 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta charset="UTF-8">
 
-  <style>
-    .login-body {
-      text-align: center;
-    }
+  <link rel="stylesheet" href="/bulma.css">
 
-    .login-div {
-      position: relative;
-      display: inline-block;
-      padding: 20px;
-      text-align: left;
-    }
-
-    .login-input {
-      display: block;
-      margin-top: 1em;
-      margin-bottom: 1em;
-      margin-left: 0;
-      margin-right: 0;
-
-      line-height: 20px;
-      text-indent: 5px;
-    }
-
-    .login-button {
-      position: absolute;
-      bottom: 0;
-      line-height: 20px;
-    }
-  </style>
+  <script defer src="/font-awesome-all.js"></script>
+  <script defer src="/web-client.js"></script>
 </head>
 
+</html>
+
 <body>
-  <script src="/web-client.js"></script>
+  <section class="hero is-fullheight">
+    <div class="hero-body">
+      <div class="container">
+        <div class="columns is-centered is-vcentered is-mobile">
+          <div class="column" style="max-width: 250px;">
+            <progress class="progress is-medium is-dark" max="100">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script type="text/javascript">
+    if (typeof WebAssembly == "undefined") {
+      alert("This website requires WebAssembly and your web browser does not support it.")
+      location.href = "https://webassembly.org/"
+    }
+  </script>
 </body>
