@@ -47,7 +47,7 @@ enum Msg {
     Register,
     RegisterDone(Result<RegisterResponse, Error>),
     Logout,
-    LogoutDone(Result<LogoutResponse, Error>),
+    LogoutDone(Result<(), Error>),
     NoOp,
 }
 
@@ -81,14 +81,6 @@ struct LoginResponse {
 struct RegisterResponse {
     token: Option<String>,
 }
-
-#[derive(Serialize)]
-struct Logout {
-    token: String,
-}
-
-#[derive(Deserialize)]
-struct LogoutResponse {}
 
 impl Component for Model {
     type Message = Msg;
@@ -278,10 +270,6 @@ impl Component for Model {
             }
             Msg::Logout => {
                 if let Some(config) = &self.config {
-                    let logout = Logout {
-                        token: self.state.token.as_ref().unwrap().to_owned(),
-                    };
-
                     self.logout_error = None;
                     self.is_logout_disabled = true;
                     self.is_logout_loading = true;
@@ -292,13 +280,14 @@ impl Component for Model {
                                 .method("POST")
                                 .uri(&format!("{}/logout", config.api_url))
                                 .header("Content-Type", "application/json")
-                                .body(Json(&logout))
+                                .header("Authorization", self.state.token.as_ref().unwrap().to_owned())
+                                .body(Nothing)
                                 .unwrap(),
                             self.link.send_back(
-                                move |response: Response<Json<Result<LogoutResponse, Error>>>| {
-                                    let (meta, Json(data)) = response.into_parts();
+                                move |response: Response<Nothing>| {
+                                    let (meta, _) = response.into_parts();
                                     if meta.status.is_success() {
-                                        Msg::LogoutDone(data)
+                                        Msg::LogoutDone(Ok(()))
                                     } else {
                                         Msg::LogoutDone(Err(format_err!(
                                             "{}: could not logout",
