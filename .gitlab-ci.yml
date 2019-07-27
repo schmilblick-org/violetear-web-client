@@ -3,8 +3,8 @@ image: alpine:latest
 variables:
   DOCKER_DRIVER: overlay2
   DOCKER_TLS_CERTDIR: ''
-  STAGING_API_URL: "https://staging.web-api.violetear.proxmox-1.schmilblick.org"
-  PRODUCTION_API_URL: "https://production.web-api.violetear.proxmox-1.schmilblick.org"
+  STAGING_API_URL: "https://staging.web-api.violetear.proxmox-1.schmilblick.org/v1"
+  PRODUCTION_API_URL: "https://production.web-api.violetear.proxmox-1.schmilblick.org/v1"
 
 stages:
   - bootstrap
