@@ -95,7 +95,7 @@ impl Component for Model {
     type Properties = ();
 
     fn create(_: Self::Properties, mut link: ComponentLink<Self>) -> Self {
-        let mut storage_service = StorageService::new(Area::Local);
+        let storage_service = StorageService::new(Area::Local);
 
         let state = {
             if let Json(Ok(state)) = storage_service.restore(KEY) {
