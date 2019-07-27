@@ -336,12 +336,12 @@ impl Renderable<Model> for Model {
     fn view(&self) -> Html<Self> {
         match self.scene {
             Scene::Loading => html! {
-                <section class="hero is-fullheight",>
-                    <div class="hero-body",>
-                        <div class="container",>
-                            <div class="columns is-centered is-vcentered is-mobile",>
-                                <div class="column", style="max-width: 250px;",>
-                                    <progress class="progress is-medium is-dark", max="100", />
+                <section class="hero is-fullheight">
+                    <div class="hero-body">
+                        <div class="container">
+                            <div class="columns is-centered is-vcentered is-mobile">
+                                <div class="column" style="max-width: 250px;">
+                                    <progress class="progress is-medium is-dark" max="100" />
                                 </div>
                             </div>
                         </div>
@@ -349,69 +349,69 @@ impl Renderable<Model> for Model {
                 </section>
             },
             Scene::LoginRegister => html! {
-                <section class="hero is-fullheight",>
-                    <div class="hero-body",>
-                        <div class="container",>
-                            <div class="columns is-centered is-vcentered is-mobile",>
-                                <div class="column", style="max-width: 300px;",>
+                <section class="hero is-fullheight">
+                    <div class="hero-body">
+                        <div class="container">
+                            <div class="columns is-centered is-vcentered is-mobile">
+                                <div class="column" style="max-width: 300px;">
                                     {
                                         if let Some(error) = &self.loginregister_error {
                                             html! {
-                                                <p class="has-text-centered", style="margin-top: 1em; margin-bottom: 1em;",>
-                                                    <span class="icon has-text-danger",>
-                                                        <i class="fas fa-info-circle",></i>
+                                                <p class="has-text-centered" style="margin-top: 1em; margin-bottom: 1em;">
+                                                    <span class="icon has-text-danger">
+                                                        <i class="fas fa-info-circle"></i>
                                                     </span>
                                                     { error }
                                                 </p>
                                             }
                                         } else {
                                             html! {
-                                                <p class="has-text-centered", style="margin-top: 1em; margin-bottom: 1em;",>
-                                                    <span class="icon has-text-info",>
-                                                        <i class="fas fa-info-circle",></i>
+                                                <p class="has-text-centered" style="margin-top: 1em; margin-bottom: 1em;">
+                                                    <span class="icon has-text-info">
+                                                        <i class="fas fa-info-circle"></i>
                                                     </span>
                                                     { "Fill the form below" }
                                                 </p>
                                             }
                                         }
                                     }
-                                    <div class="box is-centered",>
-                                        <div class="field",>
-                                            <div class="control has-icons-left",>
-                                                <input class="input", type="text", placeholder="Username",
-                                                    oninput=|e| Msg::LoginRegisterFormDataChange(LoginRegisterFormDataField::Username, e.value), />
-                                                <span class="icon is-small is-left",>
-                                                    <i class="fas fa-user",/>
+                                    <div class="box is-centered">
+                                        <div class="field">
+                                            <div class="control has-icons-left">
+                                                <input class="input" type="text" placeholder="Username"
+                                                    oninput=|e| Msg::LoginRegisterFormDataChange(LoginRegisterFormDataField::Username, e.value) />
+                                                <span class="icon is-small is-left">
+                                                    <i class="fas fa-user" />
                                                 </span>
                                             </div>
                                         </div>
-                                        <div class="field",>
-                                            <div class="control has-icons-left",>
-                                                <input class="input", type="password", placeholder="Password",
-                                                    oninput=|e| Msg::LoginRegisterFormDataChange(LoginRegisterFormDataField::Password, e.value), />
-                                                <span class="icon is-small is-left",>
-                                                    <i class="fas fa-lock",/>
+                                        <div class="field">
+                                            <div class="control has-icons-left">
+                                                <input class="input" type="password" placeholder="Password"
+                                                    oninput=|e| Msg::LoginRegisterFormDataChange(LoginRegisterFormDataField::Password, e.value) />
+                                                <span class="icon is-small is-left">
+                                                    <i class="fas fa-lock" />
                                                 </span>
                                             </div>
                                         </div>
-                                        <div class="level is-mobile",>
-                                            <div class="level-left",>
-                                                <div class="level-item",>
-                                                    <div class="field",>
-                                                        <button class=if self.is_register_loading { "button is-loading" } else { "button" }, type="button",
-                                                            disabled=self.is_register_disabled,
-                                                            onclick=|_| Msg::Register,>
+                                        <div class="level is-mobile">
+                                            <div class="level-left">
+                                                <div class="level-item">
+                                                    <div class="field">
+                                                        <button class=if self.is_register_loading { "button is-loading" } else { "button" } type="button"
+                                                            disabled=self.is_register_disabled
+                                                            onclick=|_| Msg::Register>
                                                             { "Register" }
                                                         </button>
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div class="level-right",>
-                                                <div class="level-item",>
-                                                    <div class="field",>
-                                                        <button class=if self.is_login_loading { "button is-loading" } else { "button" }, type="button",
-                                                            disabled=self.is_login_disabled,
-                                                            onclick=|_| Msg::Login,>
+                                            <div class="level-right">
+                                                <div class="level-item">
+                                                    <div class="field">
+                                                        <button class=if self.is_login_loading { "button is-loading" } else { "button" } type="button"
+                                                            disabled=self.is_login_disabled
+                                                            onclick=|_| Msg::Login>
                                                             { "Login" }
                                                         </button>
                                                     </div>
@@ -426,14 +426,14 @@ impl Renderable<Model> for Model {
                 </section>
             },
             Scene::FetchConfigError => html! {
-                <section class="hero is-fullheight",>
-                    <div class="hero-body",>
-                        <div class="container",>
-                            <div class="columns is-centered is-vcentered is-mobile",>
-                                <div class="column",>
-                                    <div class="has-text-centered",>
-                                        <span class="icon has-text-danger",>
-                                            <i class="fas fa-info-circle", />
+                <section class="hero is-fullheight">
+                    <div class="hero-body">
+                        <div class="container">
+                            <div class="columns is-centered is-vcentered is-mobile">
+                                <div class="column">
+                                    <div class="has-text-centered">
+                                        <span class="icon has-text-danger">
+                                            <i class="fas fa-info-circle" />
                                         </span>
                                         { "Could not fetch configuration, please reload to try again." }
                                     </div>
@@ -444,31 +444,31 @@ impl Renderable<Model> for Model {
                 </section>
             },
             Scene::LoggedIn => html! {
-                <section class="hero is-fullheight",>
-                    <div class="hero-body",>
-                        <div class="container",>
-                            <div class="columns is-centered is-vcentered is-mobile",>
-                                <div class="column",>
-                                    <div class="file is-boxed is-centered",>
-                                        <label class="file-label",>
-                                            <input class="file-input", type="file", />
-                                            <span class="file-cta",>
-                                                <span class="file-icon",>
-                                                    <i class="fas fa-upload",></i>
+                <section class="hero is-fullheight">
+                    <div class="hero-body">
+                        <div class="container">
+                            <div class="columns is-centered is-vcentered is-mobile">
+                                <div class="column">
+                                    <div class="file is-boxed is-centered">
+                                        <label class="file-label">
+                                            <input class="file-input" type="file" />
+                                            <span class="file-cta">
+                                                <span class="file-icon">
+                                                    <i class="fas fa-upload"></i>
                                                 </span>
-                                                <span class="file-label",>
+                                                <span class="file-label">
                                                     { "Drag to scan" }
                                                 </span>
                                             </span>
                                         </label>
                                     </div>
-                                    <div class="has-text-centered", style="margin-top: 2em; margin-bottom: 2em;",>
+                                    <div class="has-text-centered" style="margin-top: 2em; margin-bottom: 2em;">
                                         <button class=format!("button {} {}",
                                             if self.is_logout_loading { "is-loading" } else {""},
                                             if self.logout_error.is_some() {"is-danger"} else {""}),
-                                            type="button",
-                                            disabled=self.is_logout_disabled,
-                                            onclick=|_| Msg::Logout,>
+                                            type="button"
+                                            disabled=self.is_logout_disabled
+                                            onclick=|_| Msg::Logout>
                                             { "Logout" }
                                         </button>
                                     </div>
