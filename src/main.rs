@@ -170,7 +170,7 @@ impl Component for Model {
                         self.fetch_service.fetch(
                             Request::builder()
                                 .method("POST")
-                                .uri(&format!("{}/login", config.api_url))
+                                .uri(&format!("{}/v1/auth/login", config.api_url))
                                 .header("Content-Type", "application/json")
                                 .body(Json(&self.loginregister_form))
                                 .unwrap(),
@@ -219,7 +219,7 @@ impl Component for Model {
                         self.fetch_service.fetch(
                             Request::builder()
                                 .method("POST")
-                                .uri(&format!("{}/register", config.api_url))
+                                .uri(&format!("{}/v1/auth/register", config.api_url))
                                 .header("Content-Type", "application/json")
                                 .body(Json(&self.loginregister_form))
                                 .unwrap(),
@@ -278,7 +278,7 @@ impl Component for Model {
                         self.fetch_service.fetch(
                             Request::builder()
                                 .method("POST")
-                                .uri(&format!("{}/logout", config.api_url))
+                                .uri(&format!("{}/v1/auth/logout", config.api_url))
                                 .header("Content-Type", "application/json")
                                 .header("Authorization", self.state.token.as_ref().unwrap().to_owned())
                                 .body(Nothing)
