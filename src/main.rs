@@ -2,6 +2,7 @@
 
 use std::collections::HashSet;
 
+use chrono::prelude::*;
 use failure::{Error, format_err};
 use serde_derive::{Deserialize, Serialize};
 use yew::{Component, ComponentLink, Html, html::ChangeData, Renderable, ShouldRender};
@@ -9,6 +10,7 @@ use yew::format::{Json, Nothing};
 use yew::html;
 use yew::services::console::ConsoleService;
 use yew::services::fetch::{FetchService, FetchTask, Request, Response};
+use yew::services::interval::{IntervalService, IntervalTask};
 use yew::services::reader::{File, FileData, ReaderService, ReaderTask};
 use yew::services::storage::{Area, StorageService};
 use yew::virtual_dom::VNode;
@@ -21,6 +23,7 @@ struct Model {
     fetch_service: FetchService,
     console_service: ConsoleService,
     reader_service: ReaderService,
+    interval_service: IntervalService,
     ft: Option<FetchTask>,
     config: Option<Config>,
     state: State,
@@ -31,13 +34,16 @@ struct Model {
     fetched_profiles: Option<ProfilesResponse>,
     fetch_profiles_error: Option<String>,
     enabled_profiles: HashSet<String>,
+    is_file_uploading: bool,
     is_register_disabled: bool,
     is_register_loading: bool,
     is_login_loading: bool,
     is_login_disabled: bool,
     is_logout_loading: bool,
     is_logout_disabled: bool,
+    current_pending_tasks: Option<Vec<Task>>,
     rt: Option<ReaderTask>,
+    it: Option<IntervalTask>,
 }
 
 enum Scene {
@@ -63,6 +69,8 @@ enum Msg {
     LoadFile(ChangeData),
     CreateReport(FileData),
     CreateReportDone(Result<CreateResponse, Error>),
+    FetchTasks(i64),
+    FetchTasksDone(Result<TasksResponse, Error>),
     NoOp,
 }
 
@@ -112,8 +120,32 @@ pub struct ProfilesResponse {
 }
 
 #[derive(Deserialize)]
+pub struct TasksResponse {
+    tasks: Vec<Task>,
+}
+
+#[derive(Deserialize)]
 pub struct CreateResponse {
     report_id: i64,
+}
+
+#[derive(Deserialize)]
+pub struct Report {
+    pub id: i64,
+    pub user_id: i64,
+    pub created_when: chrono::DateTime<Utc>,
+    pub file_multihash: String,
+    pub file: Option<Vec<u8>>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Task {
+    id: i64,
+    report_id: i64,
+    profile_id: i64,
+    created_when: chrono::DateTime<Utc>,
+    completed_when: Option<chrono::DateTime<Utc>>,
+    status: String,
 }
 
 impl Component for Model {
@@ -139,10 +171,12 @@ impl Component for Model {
             fetch_service: FetchService::new(),
             console_service: ConsoleService::new(),
             reader_service: ReaderService::new(),
+            interval_service: IntervalService::new(),
             storage_service,
             scene: Scene::Loading,
             ft: None,
             rt: None,
+            it: None,
             config: None,
             loginregister_error: None,
             loginregister_form: LoginRegisterFormData::default(),
@@ -150,12 +184,14 @@ impl Component for Model {
             fetched_profiles: None,
             fetch_profiles_error: None,
             enabled_profiles: HashSet::new(),
+            is_file_uploading: false,
             is_register_disabled: false,
             is_register_loading: false,
             is_login_loading: false,
             is_login_disabled: false,
             is_logout_loading: false,
             is_logout_disabled: false,
+            current_pending_tasks: None,
         }
     }
 
@@ -415,13 +451,14 @@ impl Component for Model {
             }
             Msg::LoadFile(ChangeData::Files(ref file_list)) if file_list.len() == 1 => {
                 let file = file_list.into_iter().next().unwrap();
+                self.is_file_uploading = true;
 
                 self.rt = Some(
                     self.reader_service
                         .read_file(file, self.link.send_back(Msg::CreateReport)),
                 );
 
-                false
+                true
             }
             Msg::CreateReport(file_data) => {
                 if let Some(config) = &self.config {
@@ -464,11 +501,76 @@ impl Component for Model {
                 false
             }
             Msg::CreateReportDone(Ok(create_response)) => {
-                false
+                self.is_file_uploading = false;
+
+                self.link
+                    .send_self(Msg::FetchTasks(create_response.report_id));
+                self.it = Some(
+                    self.interval_service.spawn(
+                        std::time::Duration::from_millis(1000),
+                        self.link
+                            .send_back(move |_| Msg::FetchTasks(create_response.report_id)),
+                    ),
+                );
+
+                true
             }
             Msg::CreateReportDone(Err(_)) => {
+                self.is_file_uploading = false;
+
+                true
+            }
+            Msg::FetchTasks(report_id) => {
+                if let Some(config) = &self.config {
+                    self.ft = Some(
+                        self.fetch_service.fetch(
+                            Request::builder()
+                                .method("GET")
+                                .uri(&format!(
+                                    "{}/v1/reports/{}/tasks",
+                                    config.api_url, report_id
+                                ))
+                                .header(
+                                    "Authorization",
+                                    self.state.token.as_ref().unwrap().to_owned(),
+                                )
+                                .body(Nothing)
+                                .unwrap(),
+                            self.link.send_back(
+                                move |response: Response<Json<Result<TasksResponse, Error>>>| {
+                                    let (meta, Json(response)) = response.into_parts();
+                                    if meta.status.is_success() {
+                                        Msg::FetchTasksDone(response)
+                                    } else {
+                                        Msg::FetchTasksDone(Err(format_err!(
+                                            "{}: could not fetch tasks",
+                                            meta.status
+                                        )))
+                                    }
+                                },
+                            ),
+                        ),
+                    );
+                };
+
                 false
             }
+            Msg::FetchTasksDone(Ok(fetch_response)) => {
+                let pending_tasks: Vec<&Task> = fetch_response
+                    .tasks
+                    .iter()
+                    .filter(|x| x.status == "new" || x.status == "pending")
+                    .collect();
+
+                if pending_tasks.len() == 0 {
+                    self.it = None;
+                }
+
+                self.current_pending_tasks = Some(fetch_response.tasks);
+
+                true
+            }
+            Msg::FetchTasksDone(Err(_)) => true,
             Msg::NoOp => false,
             _ => false,
         }
@@ -599,7 +701,26 @@ impl Renderable<Model> for Model {
                                         {
                                             for self.fetched_profiles.iter().next().unwrap().profiles.iter().map(|profile| {
                                                 html! {
-                                                    <label class="panel-block is-unselectable">
+                                                    <label class={
+                                                        if let Some(tasks) = &self.current_pending_tasks {
+                                                            let task = tasks.iter().find(|x| x.profile_id == profile.id);
+                                                            if let Some(task) = task {
+                                                                match task.status.as_str() {
+                                                                    "new" => "panel-block is-unselectable has-background-grey-lighter",
+                                                                    "pending" => "panel-block is-unselectable has-background-grey",
+                                                                    "clean" => "panel-block is-unselectable has-background-success",
+                                                                    "detected" => "panel-block is-unselectable has-background-danger",
+                                                                    "timeout" => "panel-block is-unselectable has-background-warning",
+                                                                    "error" => "panel-block is-unselectable has-background-danger",
+                                                                    _ => "panel-block is-unselectable"
+                                                                }
+                                                            } else {
+                                                                "panel-block is-unselectable"
+                                                            }
+                                                        } else {
+                                                            "panel-block is-unselectable"
+                                                        }
+                                                    }>
                                                         <input
                                                             type="checkbox"
                                                             checked=true
@@ -621,7 +742,13 @@ impl Renderable<Model> for Model {
 
                                     <div class="file is-boxed is-centered">
                                         <label class="file-label">
-                                            <input class="file-input" type="file" onchange=|e| Msg::LoadFile(e) />
+                                            {
+                                                if self.is_file_uploading {
+                                                    html! { <input class="file-input" type="file" disabled=true onchange=|e| Msg::LoadFile(e) /> }
+                                                } else {
+                                                    html! { <input class="file-input" type="file" onchange=|e| Msg::LoadFile(e) /> }
+                                                }
+                                            }
                                             <span class="file-cta">
                                                 <span class="file-icon">
                                                     <i class="fas fa-upload"></i>
