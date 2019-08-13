@@ -1,13 +1,19 @@
 #![recursion_limit = "8192"]
 
-use failure::{format_err, Error};
-use serde_derive::{Deserialize, Serialize};
-use yew::format::{Json, Nothing};
-use yew::services::fetch::{FetchService, FetchTask, Request, Response};
-use yew::services::storage::{Area, StorageService};
-use yew::services::console::ConsoleService;
+use std::collections::HashSet;
 
-use yew::{html, Component, ComponentLink, Html, Renderable, ShouldRender};
+use chrono::prelude::*;
+use failure::{Error, format_err};
+use serde_derive::{Deserialize, Serialize};
+use yew::{Component, ComponentLink, Html, html::ChangeData, Renderable, ShouldRender};
+use yew::format::{Json, Nothing};
+use yew::html;
+use yew::services::console::ConsoleService;
+use yew::services::fetch::{FetchService, FetchTask, Request, Response};
+use yew::services::interval::{IntervalService, IntervalTask};
+use yew::services::reader::{File, FileData, ReaderService, ReaderTask};
+use yew::services::storage::{Area, StorageService};
+use yew::virtual_dom::VNode;
 
 const KEY: &str = "violetear.web-client.database";
 
@@ -16,6 +22,8 @@ struct Model {
     storage_service: StorageService,
     fetch_service: FetchService,
     console_service: ConsoleService,
+    reader_service: ReaderService,
+    interval_service: IntervalService,
     ft: Option<FetchTask>,
     config: Option<Config>,
     state: State,
@@ -23,12 +31,19 @@ struct Model {
     loginregister_error: Option<String>,
     loginregister_form: LoginRegisterFormData,
     logout_error: Option<String>,
+    fetched_profiles: Option<ProfilesResponse>,
+    fetch_profiles_error: Option<String>,
+    enabled_profiles: HashSet<String>,
+    is_file_uploading: bool,
     is_register_disabled: bool,
     is_register_loading: bool,
     is_login_loading: bool,
     is_login_disabled: bool,
     is_logout_loading: bool,
     is_logout_disabled: bool,
+    current_pending_tasks: Option<Vec<Task>>,
+    rt: Option<ReaderTask>,
+    it: Option<IntervalTask>,
 }
 
 enum Scene {
@@ -48,6 +63,14 @@ enum Msg {
     RegisterDone(Result<RegisterResponse, Error>),
     Logout,
     LogoutDone(Result<(), Error>),
+    FetchProfiles,
+    FetchProfilesDone(Result<ProfilesResponse, Error>),
+    ToggleProfile(String),
+    LoadFile(ChangeData),
+    CreateReport(FileData),
+    CreateReportDone(Result<CreateResponse, Error>),
+    FetchTasks(i64),
+    FetchTasksDone(Result<TasksResponse, Error>),
     NoOp,
 }
 
@@ -82,6 +105,49 @@ struct RegisterResponse {
     token: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub struct Profile {
+    pub id: i64,
+    pub machine_name: String,
+    pub human_name: String,
+    pub module: String,
+    pub config: Option<serde_json::Value>,
+}
+
+#[derive(Deserialize)]
+pub struct ProfilesResponse {
+    profiles: Vec<Profile>,
+}
+
+#[derive(Deserialize)]
+pub struct TasksResponse {
+    tasks: Vec<Task>,
+}
+
+#[derive(Deserialize)]
+pub struct CreateResponse {
+    report_id: i64,
+}
+
+#[derive(Deserialize)]
+pub struct Report {
+    pub id: i64,
+    pub user_id: i64,
+    pub created_when: chrono::DateTime<Utc>,
+    pub file_multihash: String,
+    pub file: Option<Vec<u8>>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Task {
+    id: i64,
+    report_id: i64,
+    profile_id: i64,
+    created_when: chrono::DateTime<Utc>,
+    completed_when: Option<chrono::DateTime<Utc>>,
+    status: String,
+}
+
 impl Component for Model {
     type Message = Msg;
     type Properties = ();
@@ -104,19 +170,28 @@ impl Component for Model {
             state,
             fetch_service: FetchService::new(),
             console_service: ConsoleService::new(),
+            reader_service: ReaderService::new(),
+            interval_service: IntervalService::new(),
             storage_service,
             scene: Scene::Loading,
             ft: None,
+            rt: None,
+            it: None,
             config: None,
             loginregister_error: None,
             loginregister_form: LoginRegisterFormData::default(),
             logout_error: None,
+            fetched_profiles: None,
+            fetch_profiles_error: None,
+            enabled_profiles: HashSet::new(),
+            is_file_uploading: false,
             is_register_disabled: false,
             is_register_loading: false,
             is_login_loading: false,
             is_login_disabled: false,
             is_logout_loading: false,
             is_logout_disabled: false,
+            current_pending_tasks: None,
         }
     }
 
@@ -149,7 +224,8 @@ impl Component for Model {
                     .log(&format!("Configuration was fetched.\n{:#?}", self.config));
 
                 if self.state.token.is_some() {
-                    self.scene = Scene::LoggedIn;
+                    self.link.send_self(Msg::FetchProfiles);
+                    self.scene = Scene::Loading;
                 } else {
                     self.scene = Scene::LoginRegister;
                 }
@@ -170,7 +246,7 @@ impl Component for Model {
                         self.fetch_service.fetch(
                             Request::builder()
                                 .method("POST")
-                                .uri(&format!("{}/login", config.api_url))
+                                .uri(&format!("{}/v1/auth/login", config.api_url))
                                 .header("Content-Type", "application/json")
                                 .body(Json(&self.loginregister_form))
                                 .unwrap(),
@@ -188,17 +264,17 @@ impl Component for Model {
                                 },
                             ),
                         ),
-                    )
+                    );
                 };
                 true
             }
             Msg::LoginDone(Ok(login_response)) => {
                 self.state.token = Some(login_response.token.unwrap());
                 self.storage_service.store(KEY, Json(&self.state));
-                self.scene = Scene::LoggedIn;
                 self.is_register_disabled = false;
                 self.is_login_loading = false;
                 self.is_login_disabled = false;
+                self.link.send_self(Msg::FetchProfiles);
                 true
             }
             Msg::LoginDone(Err(_)) => {
@@ -219,7 +295,7 @@ impl Component for Model {
                         self.fetch_service.fetch(
                             Request::builder()
                                 .method("POST")
-                                .uri(&format!("{}/register", config.api_url))
+                                .uri(&format!("{}/v1/auth/register", config.api_url))
                                 .header("Content-Type", "application/json")
                                 .body(Json(&self.loginregister_form))
                                 .unwrap(),
@@ -237,7 +313,7 @@ impl Component for Model {
                                 },
                             ),
                         ),
-                    )
+                    );
                 };
                 true
             }
@@ -247,7 +323,7 @@ impl Component for Model {
                 self.is_login_disabled = false;
                 self.state.token = Some(register_response.token.unwrap());
                 self.storage_service.store(KEY, Json(&self.state));
-                self.scene = Scene::LoggedIn;
+                self.link.send_self(Msg::FetchProfiles);
                 true
             }
             Msg::RegisterDone(Err(_)) => {
@@ -278,26 +354,27 @@ impl Component for Model {
                         self.fetch_service.fetch(
                             Request::builder()
                                 .method("POST")
-                                .uri(&format!("{}/logout", config.api_url))
+                                .uri(&format!("{}/v1/auth/logout", config.api_url))
                                 .header("Content-Type", "application/json")
-                                .header("Authorization", self.state.token.as_ref().unwrap().to_owned())
+                                .header(
+                                    "Authorization",
+                                    self.state.token.as_ref().unwrap().to_owned(),
+                                )
                                 .body(Nothing)
                                 .unwrap(),
-                            self.link.send_back(
-                                move |response: Response<Nothing>| {
-                                    let (meta, _) = response.into_parts();
-                                    if meta.status.is_success() {
-                                        Msg::LogoutDone(Ok(()))
-                                    } else {
-                                        Msg::LogoutDone(Err(format_err!(
-                                            "{}: could not logout",
-                                            meta.status
-                                        )))
-                                    }
-                                },
-                            ),
+                            self.link.send_back(move |response: Response<Nothing>| {
+                                let (meta, _) = response.into_parts();
+                                if meta.status.is_success() {
+                                    Msg::LogoutDone(Ok(()))
+                                } else {
+                                    Msg::LogoutDone(Err(format_err!(
+                                        "{}: could not logout",
+                                        meta.status
+                                    )))
+                                }
+                            }),
                         ),
-                    )
+                    );
                 };
                 true
             }
@@ -316,7 +393,186 @@ impl Component for Model {
                 self.logout_error = Some("Could not logout".into());
                 true
             }
+            Msg::FetchProfiles => {
+                if let Some(config) = &self.config {
+                    self.ft = Some(
+                        self.fetch_service.fetch(
+                            Request::builder()
+                                .method("GET")
+                                .uri(&format!("{}/v1/profiles", config.api_url))
+                                .header(
+                                    "Authorization",
+                                    self.state.token.as_ref().unwrap().to_owned(),
+                                )
+                                .body(Nothing)
+                                .unwrap(),
+                            self.link.send_back(
+                                move |response: Response<Json<Result<ProfilesResponse, Error>>>| {
+                                    let (meta, Json(profiles)) = response.into_parts();
+                                    if meta.status.is_success() {
+                                        Msg::FetchProfilesDone(profiles)
+                                    } else {
+                                        Msg::FetchProfilesDone(Err(format_err!(
+                                            "{}: could not fetch profiles",
+                                            meta.status
+                                        )))
+                                    }
+                                },
+                            ),
+                        ),
+                    );
+                };
+                true
+            }
+            Msg::FetchProfilesDone(Err(_)) => {
+                self.fetch_profiles_error = Some("Could not fetch profiles".into());
+                true
+            }
+            Msg::FetchProfilesDone(Ok(profiles_response)) => {
+                self.scene = Scene::LoggedIn;
+
+                self.enabled_profiles.clear();
+                for profile in profiles_response.profiles.iter() {
+                    self.enabled_profiles
+                        .insert(profile.machine_name.to_owned());
+                }
+
+                self.fetched_profiles = Some(profiles_response);
+                true
+            }
+            Msg::ToggleProfile(machine_name) => {
+                if self.enabled_profiles.contains(&machine_name) {
+                    self.enabled_profiles.remove(&machine_name);
+                } else {
+                    self.enabled_profiles.insert(machine_name.to_owned());
+                }
+
+                false
+            }
+            Msg::LoadFile(ChangeData::Files(ref file_list)) if file_list.len() == 1 => {
+                let file = file_list.into_iter().next().unwrap();
+                self.is_file_uploading = true;
+
+                self.rt = Some(
+                    self.reader_service
+                        .read_file(file, self.link.send_back(Msg::CreateReport)),
+                );
+
+                true
+            }
+            Msg::CreateReport(file_data) => {
+                if let Some(config) = &self.config {
+                    self.ft = Some(
+                        self.fetch_service.fetch_binary(
+                            Request::builder()
+                                .method("POST")
+                                .uri(&format!(
+                                    "{}/v1/reports/create?profiles={}",
+                                    config.api_url,
+                                    self.enabled_profiles
+                                        .clone()
+                                        .into_iter()
+                                        .collect::<Vec<String>>()
+                                        .join(",")
+                                ))
+                                .header(
+                                    "Authorization",
+                                    self.state.token.as_ref().unwrap().to_owned(),
+                                )
+                                .body(Ok(file_data.content))
+                                .unwrap(),
+                            self.link.send_back(
+                                move |response: Response<Json<Result<CreateResponse, Error>>>| {
+                                    let (meta, Json(response)) = response.into_parts();
+                                    if meta.status.is_success() {
+                                        Msg::CreateReportDone(response)
+                                    } else {
+                                        Msg::CreateReportDone(Err(format_err!(
+                                            "{}: could not create report",
+                                            meta.status
+                                        )))
+                                    }
+                                },
+                            ),
+                        ),
+                    );
+                };
+
+                false
+            }
+            Msg::CreateReportDone(Ok(create_response)) => {
+                self.is_file_uploading = false;
+
+                self.link
+                    .send_self(Msg::FetchTasks(create_response.report_id));
+                self.it = Some(
+                    self.interval_service.spawn(
+                        std::time::Duration::from_millis(1000),
+                        self.link
+                            .send_back(move |_| Msg::FetchTasks(create_response.report_id)),
+                    ),
+                );
+
+                true
+            }
+            Msg::CreateReportDone(Err(_)) => {
+                self.is_file_uploading = false;
+
+                true
+            }
+            Msg::FetchTasks(report_id) => {
+                if let Some(config) = &self.config {
+                    self.ft = Some(
+                        self.fetch_service.fetch(
+                            Request::builder()
+                                .method("GET")
+                                .uri(&format!(
+                                    "{}/v1/reports/{}/tasks",
+                                    config.api_url, report_id
+                                ))
+                                .header(
+                                    "Authorization",
+                                    self.state.token.as_ref().unwrap().to_owned(),
+                                )
+                                .body(Nothing)
+                                .unwrap(),
+                            self.link.send_back(
+                                move |response: Response<Json<Result<TasksResponse, Error>>>| {
+                                    let (meta, Json(response)) = response.into_parts();
+                                    if meta.status.is_success() {
+                                        Msg::FetchTasksDone(response)
+                                    } else {
+                                        Msg::FetchTasksDone(Err(format_err!(
+                                            "{}: could not fetch tasks",
+                                            meta.status
+                                        )))
+                                    }
+                                },
+                            ),
+                        ),
+                    );
+                };
+
+                false
+            }
+            Msg::FetchTasksDone(Ok(fetch_response)) => {
+                let pending_tasks: Vec<&Task> = fetch_response
+                    .tasks
+                    .iter()
+                    .filter(|x| x.status == "new" || x.status == "pending")
+                    .collect();
+
+                if pending_tasks.len() == 0 {
+                    self.it = None;
+                }
+
+                self.current_pending_tasks = Some(fetch_response.tasks);
+
+                true
+            }
+            Msg::FetchTasksDone(Err(_)) => true,
             Msg::NoOp => false,
+            _ => false,
         }
     }
 }
@@ -437,10 +693,62 @@ impl Renderable<Model> for Model {
                     <div class="hero-body">
                         <div class="container">
                             <div class="columns is-centered is-vcentered is-mobile">
-                                <div class="column">
+                                <div class="column" style="max-width: 300px;">
+                                    <nav class="panel">
+                                        <p class="panel-heading">
+                                            { "Profiles" }
+                                        </p>
+                                        {
+                                            for self.fetched_profiles.iter().next().unwrap().profiles.iter().map(|profile| {
+                                                html! {
+                                                    <label class={
+                                                        if let Some(tasks) = &self.current_pending_tasks {
+                                                            let task = tasks.iter().find(|x| x.profile_id == profile.id);
+                                                            if let Some(task) = task {
+                                                                match task.status.as_str() {
+                                                                    "new" => "panel-block is-unselectable has-background-grey-lighter",
+                                                                    "pending" => "panel-block is-unselectable has-background-grey",
+                                                                    "clean" => "panel-block is-unselectable has-background-success",
+                                                                    "detected" => "panel-block is-unselectable has-background-danger",
+                                                                    "timeout" => "panel-block is-unselectable has-background-warning",
+                                                                    "error" => "panel-block is-unselectable has-background-danger",
+                                                                    _ => "panel-block is-unselectable"
+                                                                }
+                                                            } else {
+                                                                "panel-block is-unselectable"
+                                                            }
+                                                        } else {
+                                                            "panel-block is-unselectable"
+                                                        }
+                                                    }>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked=true
+                                                            value=&profile.machine_name.to_string()
+                                                            onchange=|e| {
+                                                                if let ChangeData::Value(value) = e {
+                                                                    Msg::ToggleProfile(value)
+                                                                } else {
+                                                                    Msg::NoOp
+                                                                }
+                                                            }
+                                                        />
+                                                        { &profile.human_name }
+                                                    </label>
+                                                }
+                                            })
+                                        }
+                                    </nav>
+
                                     <div class="file is-boxed is-centered">
                                         <label class="file-label">
-                                            <input class="file-input" type="file" />
+                                            {
+                                                if self.is_file_uploading {
+                                                    html! { <input class="file-input" type="file" disabled=true onchange=|e| Msg::LoadFile(e) /> }
+                                                } else {
+                                                    html! { <input class="file-input" type="file" onchange=|e| Msg::LoadFile(e) /> }
+                                                }
+                                            }
                                             <span class="file-cta">
                                                 <span class="file-icon">
                                                     <i class="fas fa-upload"></i>
@@ -451,6 +759,7 @@ impl Renderable<Model> for Model {
                                             </span>
                                         </label>
                                     </div>
+
                                     <div class="has-text-centered" style="margin-top: 2em; margin-bottom: 2em;">
                                         <button class=format!("button {} {}",
                                             if self.is_logout_loading { "is-loading" } else {""},
