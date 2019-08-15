@@ -146,6 +146,7 @@ pub struct Task {
     created_when: chrono::DateTime<Utc>,
     completed_when: Option<chrono::DateTime<Utc>>,
     status: String,
+    message: Option<String>,
 }
 
 impl Component for Model {
@@ -693,51 +694,66 @@ impl Renderable<Model> for Model {
                     <div class="hero-body">
                         <div class="container">
                             <div class="columns is-centered is-vcentered is-mobile">
-                                <div class="column" style="max-width: 300px;">
+                                <div class="column" style="max-width: 400px;">
                                     <nav class="panel">
                                         <p class="panel-heading">
                                             { "Profiles" }
                                         </p>
+                                        <table class="table is-bordered is-striped is-narrow is-hoverable is-fullwidth">
+                                        <thead>
+                                            <tr>
+                                                <th>{ "Engine" }</th>
+                                                <th>{ "Status" }</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
                                         {
                                             for self.fetched_profiles.iter().next().unwrap().profiles.iter().map(|profile| {
                                                 html! {
-                                                    <label class={
-                                                        if let Some(tasks) = &self.current_pending_tasks {
-                                                            let task = tasks.iter().find(|x| x.profile_id == profile.id);
-                                                            if let Some(task) = task {
-                                                                match task.status.as_str() {
-                                                                    "new" => "panel-block is-unselectable has-background-grey-lighter",
-                                                                    "pending" => "panel-block is-unselectable has-background-grey",
-                                                                    "clean" => "panel-block is-unselectable has-background-success",
-                                                                    "detected" => "panel-block is-unselectable has-background-danger",
-                                                                    "timeout" => "panel-block is-unselectable has-background-warning",
-                                                                    "error" => "panel-block is-unselectable has-background-danger",
-                                                                    _ => "panel-block is-unselectable"
+                                                    <tr>
+                                                        <td>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked=true
+                                                                value=&profile.machine_name.to_string()
+                                                                onchange=|e| {
+                                                                    if let ChangeData::Value(value) = e {
+                                                                        Msg::ToggleProfile(value)
+                                                                    } else {
+                                                                        Msg::NoOp
+                                                                    }
                                                                 }
-                                                            } else {
-                                                                "panel-block is-unselectable"
-                                                            }
-                                                        } else {
-                                                            "panel-block is-unselectable"
-                                                        }
-                                                    }>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked=true
-                                                            value=&profile.machine_name.to_string()
-                                                            onchange=|e| {
-                                                                if let ChangeData::Value(value) = e {
-                                                                    Msg::ToggleProfile(value)
+                                                            />
+                                                            { &profile.human_name }
+                                                        </td>
+                                                        <td>
+                                                            {
+                                                                if let Some(tasks) = &self.current_pending_tasks {
+                                                                    let task = tasks.iter().find(|x| x.profile_id == profile.id);
+                                                                    if let Some(task) = task {
+                                                                        match task.status.as_str() {
+                                                                            "new" => "Waiting for worker..",
+                                                                            "pending" => "Processing..",
+                                                                            "clean" => "Clean",
+                                                                            "detected" => task.message.iter().next().unwrap(),
+                                                                            "timeout" => "Timeout",
+                                                                            "error" => "Error",
+                                                                            _ => ""
+                                                                        }
+                                                                    } else {
+                                                                        ""
+                                                                    }
                                                                 } else {
-                                                                    Msg::NoOp
+                                                                    "Idle"
                                                                 }
                                                             }
-                                                        />
-                                                        { &profile.human_name }
-                                                    </label>
+                                                        </td>
+                                                    </tr>
                                                 }
                                             })
                                         }
+                                        </tbody>
+                                        </table>
                                     </nav>
 
                                     <div class="file is-boxed is-centered">
